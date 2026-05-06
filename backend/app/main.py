@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import solver
 from app.routers import auth
+import os
 
 app = FastAPI(
     title="SmartCampusAI API",
@@ -9,9 +10,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Orígenes permitidos: local en dev, Vercel en producción
+# FRONTEND_URL se configura como variable de entorno en Render
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    os.getenv("FRONTEND_URL", ""),
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[o for o in ALLOWED_ORIGINS if o],  # filtra strings vacíos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,4 +35,4 @@ def startup():
 
 @app.get("/")
 def root():
-    return {"message": "SmartCampusAI API corriendo ✅"}
+    return {"message": "SmartCampusAI API corriendo"}

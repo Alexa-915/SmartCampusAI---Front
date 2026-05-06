@@ -6,15 +6,16 @@ from app.schemas.asignacion import AsignacionOut
 import sys
 import os
 
-# Apuntar al proyecto CSP original
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "SmartCampusAI"))
+# El motor CSP vive dentro del repo en backend/csp_engine/
+CSP_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "csp_engine")
+sys.path.insert(0, os.path.abspath(CSP_ROOT))
 
 from src.data.loader import cargar_salones, cargar_clases
 from src.csp.solver import resolver_csp
 
 router = APIRouter(prefix="/api", tags=["solver"])
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "SmartCampusAI", "data")
+DATA_PATH = os.path.join(os.path.abspath(CSP_ROOT), "data")
 
 
 @router.post("/resolver")
