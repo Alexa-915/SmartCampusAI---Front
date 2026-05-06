@@ -19,7 +19,8 @@ class AsignacionBase(BaseModel):
 
 
 class AsignacionOut(AsignacionBase):
-    id: int
+    id:         int
+    dataset_id: int
 
     class Config:
         from_attributes = True

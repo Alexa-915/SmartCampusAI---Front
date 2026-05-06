@@ -14,13 +14,47 @@ API.interceptors.request.use((config) => {
   return config
 })
 
-// Auth
+// ── Auth ──────────────────────────────────────────────────────────────────
 export const register = (datos) => API.post('/api/auth/register', datos)
 export const login    = (datos) => API.post('/api/auth/login', datos)
 
-// Solver
-export const resolverCSP      = ()  => API.post('/api/resolver')
-export const getAsignaciones  = ()  => API.get('/api/asignaciones')
-export const getResumen       = ()  => API.get('/api/resumen')
+// ── Datasets ──────────────────────────────────────────────────────────────
+export const getDatasets      = ()          => API.get('/api/datasets/')
+export const getDataset       = (id)        => API.get(`/api/datasets/${id}`)
+export const crearDataset     = (datos)     => API.post('/api/datasets/', datos)
+export const actualizarDataset= (id, datos) => API.put(`/api/datasets/${id}`, datos)
+export const eliminarDataset  = (id)        => API.delete(`/api/datasets/${id}`)
+export const conteoDataset    = (id)        => API.get(`/api/datasets/${id}/conteo`)
+
+// ── Upload Excel ──────────────────────────────────────────────────────────
+export const uploadClases  = (datasetId, archivo) => {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return API.post(`/api/datasets/${datasetId}/upload/clases`, form)
+}
+export const uploadSalones = (datasetId, archivo) => {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return API.post(`/api/datasets/${datasetId}/upload/salones`, form)
+}
+
+// ── Clases ────────────────────────────────────────────────────────────────
+export const getClases      = (datasetId)        => API.get('/api/clases/', { params: { dataset_id: datasetId } })
+export const getClase       = (id)               => API.get(`/api/clases/${id}`)
+export const crearClase     = (datos)            => API.post('/api/clases/', datos)
+export const actualizarClase= (id, datos)        => API.put(`/api/clases/${id}`, datos)
+export const eliminarClase  = (id)               => API.delete(`/api/clases/${id}`)
+
+// ── Salones ───────────────────────────────────────────────────────────────
+export const getSalones      = (datasetId)       => API.get('/api/salones/', { params: { dataset_id: datasetId } })
+export const getSalon        = (id)              => API.get(`/api/salones/${id}`)
+export const crearSalon      = (datos)           => API.post('/api/salones/', datos)
+export const actualizarSalon = (id, datos)       => API.put(`/api/salones/${id}`, datos)
+export const eliminarSalon   = (id)              => API.delete(`/api/salones/${id}`)
+
+// ── Solver ────────────────────────────────────────────────────────────────
+export const resolverCSP     = (datasetId)       => API.post(`/api/resolver/${datasetId}`)
+export const getAsignaciones = (datasetId)       => API.get('/api/asignaciones', { params: { dataset_id: datasetId } })
+export const getResumen      = (datasetId)       => API.get('/api/resumen', { params: { dataset_id: datasetId } })
 
 export default API

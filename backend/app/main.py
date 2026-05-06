@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import solver
-from app.routers import auth
+from app.routers import solver, auth, datasets, clases, salones, upload
 import os
 
 app = FastAPI(
@@ -27,10 +26,15 @@ app.add_middleware(
 
 app.include_router(solver.router)
 app.include_router(auth.router)
+app.include_router(datasets.router)
+app.include_router(clases.router)
+app.include_router(salones.router)
+app.include_router(upload.router)
 
 @app.on_event("startup")
 def startup():
     from app.database import Base, engine
+    import app.models  # asegura que todos los modelos estén registrados
     Base.metadata.create_all(bind=engine)
 
 @app.get("/")

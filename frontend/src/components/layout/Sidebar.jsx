@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion'
-import { LayoutDashboard, Table2, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Database, Table2, Settings, LogOut } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import ThemeToggle from './ThemeToggle'
 
 const NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard',    path: '/dashboard' },
-  { icon: Table2,          label: 'Asignaciones', path: '/asignaciones' },
-  { icon: Settings,        label: 'Configuración',path: '/configuracion' },
+  { icon: LayoutDashboard, label: 'Dashboard',  path: '/dashboard' },
+  { icon: Database,        label: 'Datos',       path: '/datos' },
+  { icon: Table2,          label: 'Resultados',  path: '/resultados' },
+  { icon: Settings,        label: 'Configuración', path: '/configuracion' },
 ]
 
 export default function Sidebar() {

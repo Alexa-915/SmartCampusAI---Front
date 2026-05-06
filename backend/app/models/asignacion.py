@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from app.database import Base
 
 
@@ -6,6 +6,9 @@ class Asignacion(Base):
     __tablename__ = "asignaciones"
 
     id               = Column(Integer, primary_key=True, index=True)
+    # Cada resultado pertenece al dataset con el que se corrió el solver
+    dataset_id       = Column(Integer, ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False)
+
     materia          = Column(String)
     grupo            = Column(String)
     profesor         = Column(String)
