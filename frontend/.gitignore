@@ -19,6 +19,9 @@ dist-ssr/
 .vite/
 *.local
 
+__pycache__/
+*.pyc
+
 # Logs
 logs
 *.log

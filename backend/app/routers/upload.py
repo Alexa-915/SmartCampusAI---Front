@@ -4,6 +4,8 @@ from app.database import get_db
 from app.models.dataset import Dataset
 from app.models.clase import Clase
 from app.models.salon import Salon
+from app.models.usuario import Usuario
+from app.auth import get_usuario_actual
 import pandas as pd
 import io
 
@@ -119,12 +121,16 @@ async def upload_clases(
     dataset_id: int,
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
 ):
     """
     Sube un Excel de clases a un dataset.
     Reemplaza todas las clases existentes del dataset con las del archivo.
     """
-    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.usuario_id == usuario.id,
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset no encontrado")
 
@@ -154,12 +160,16 @@ async def upload_salones(
     dataset_id: int,
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
 ):
     """
     Sube un Excel de salones a un dataset.
     Reemplaza todos los salones existentes del dataset con los del archivo.
     """
-    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.usuario_id == usuario.id,
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset no encontrado")
 
@@ -184,14 +194,26 @@ async def upload_salones(
 
 
 @router.get("/{dataset_id}/conteo")
-def conteo_dataset(dataset_id: int, db: Session = Depends(get_db)):
+def conteo_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
     """Devuelve cuántas clases y salones tiene un dataset."""
-    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.usuario_id == usuario.id,
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset no encontrado")
 
+    n_clases  = db.query(Clase).filter(Clase.dataset_id == dataset_id).count()
+    n_salones = db.query(Salon).filter(Salon.dataset_id == dataset_id).count()
+
     return {
-        "dataset_id": dataset_id,
-        "clases":  db.query(Clase).filter(Clase.dataset_id == dataset_id).count(),
-        "salones": db.query(Salon).filter(Salon.dataset_id == dataset_id).count(),
+        "dataset_id":     dataset_id,
+        "clases":         n_clases,
+        "salones":        n_salones,
+        "clases_cargadas":  n_clases > 0,   # indica si ya se subió un archivo
+        "salones_cargados": n_salones > 0,
     }

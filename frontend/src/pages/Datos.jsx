@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X, Download } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -9,10 +9,12 @@ import Alert from '../components/ui/Alert'
 import Modal from '../components/ui/Modal'
 import Table from '../components/ui/Table'
 import Loader from '../components/ui/Loader'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import DatasetSelector from '../components/datos/DatasetSelector'
 import UploadZone from '../components/datos/UploadZone'
 import ClaseForm from '../components/datos/ClaseForm'
 import SalonForm from '../components/datos/SalonForm'
+import { exportarExcel } from '../utils/exportExcel'
 import {
   getDatasets, crearDataset, eliminarDataset, conteoDataset,
   getClases, crearClase, actualizarClase, eliminarClase,
@@ -37,6 +39,18 @@ export default function Datos() {
   const [modalSalon, setModalSalon]   = useState(false)
   const [editClase, setEditClase]     = useState(null)  // null = crear, obj = editar
   const [editSalon, setEditSalon]     = useState(null)
+
+  // Estado del diálogo de confirmación
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false, title: '', message: '', onConfirm: null,
+  })
+
+  const pedirConfirmacion = (title, message, onConfirm) => {
+    setConfirmDialog({ open: true, title, message, onConfirm })
+  }
+  const cerrarConfirmacion = () => {
+    setConfirmDialog({ open: false, title: '', message: '', onConfirm: null })
+  }
 
   // ── Cargar datasets al montar ────────────────────────────────────────────
   useEffect(() => { fetchDatasets() }, [])
@@ -117,16 +131,22 @@ export default function Datos() {
   }
 
   const handleEliminarDataset = async (ds) => {
-    if (!confirm(`¿Eliminar el dataset "${ds.nombre}"? Se borrarán todas sus clases y salones.`)) return
-    await eliminarDataset(ds.id)
-    if (dataset?.id === ds.id) {
-      setDataset(null)
-      setClases([])
-      setSalones([])
-      setConteo(null)
-    }
-    await fetchDatasets()
-    setAlert({ type: 'success', message: `Dataset "${ds.nombre}" eliminado` })
+    pedirConfirmacion(
+      '¿Eliminar dataset?',
+      `Se eliminará "${ds.nombre}" junto con todas sus clases y salones. Esta acción no se puede deshacer.`,
+      async () => {
+        cerrarConfirmacion()
+        await eliminarDataset(ds.id)
+        if (dataset?.id === ds.id) {
+          setDataset(null)
+          setClases([])
+          setSalones([])
+          setConteo(null)
+        }
+        await fetchDatasets()
+        setAlert({ type: 'success', message: `Dataset "${ds.nombre}" eliminado` })
+      }
+    )
   }
 
   // ── Upload Excel ─────────────────────────────────────────────────────────
@@ -153,14 +173,20 @@ export default function Datos() {
     }
     setModalClase(false)
     setEditClase(null)
-    await refrescarTab()
+    await refrescarTodo()
   }
 
   const handleEliminarClase = async (clase) => {
-    if (!confirm(`¿Eliminar la clase "${clase.materia} - ${clase.grupo}"?`)) return
-    await eliminarClase(clase.id)
-    await refrescarTab()
-    setAlert({ type: 'success', message: 'Clase eliminada' })
+    pedirConfirmacion(
+      '¿Eliminar clase?',
+      `Se eliminará "${clase.materia} - ${clase.grupo}" de este dataset.`,
+      async () => {
+        cerrarConfirmacion()
+        await eliminarClase(clase.id)
+        await refrescarTodo()
+        setAlert({ type: 'success', message: 'Clase eliminada' })
+      }
+    )
   }
 
   // ── CRUD Salones ─────────────────────────────────────────────────────────
@@ -174,14 +200,21 @@ export default function Datos() {
     }
     setModalSalon(false)
     setEditSalon(null)
-    await refrescarTab()
+    // Refrescar todo para que bloques/tipologías nuevas aparezcan inmediatamente
+    await refrescarTodo()
   }
 
   const handleEliminarSalon = async (salon) => {
-    if (!confirm(`¿Eliminar el salón "${salon.codigo}"?`)) return
-    await eliminarSalon(salon.id)
-    await refrescarTab()
-    setAlert({ type: 'success', message: 'Salón eliminado' })
+    pedirConfirmacion(
+      '¿Eliminar salón?',
+      `Se eliminará el salón "${salon.codigo}" de este dataset.`,
+      async () => {
+        cerrarConfirmacion()
+        await eliminarSalon(salon.id)
+        await refrescarTodo()
+        setAlert({ type: 'success', message: 'Salón eliminado' })
+      }
+    )
   }
 
   // ── Columnas de las tablas ───────────────────────────────────────────────
@@ -317,8 +350,20 @@ export default function Datos() {
           <Card style={{ marginBottom: '1.5rem' }}>
             <p style={s.sectionLabel}>Cargar archivos Excel</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <UploadZone label="Clases"  onUpload={handleUploadClases}  disabled={!dataset} />
-              <UploadZone label="Salones" onUpload={handleUploadSalones} disabled={!dataset} />
+              <UploadZone
+                label="Clases"
+                onUpload={handleUploadClases}
+                disabled={!dataset}
+                alreadyLoaded={conteo?.clases_cargadas}
+                count={conteo?.clases || 0}
+              />
+              <UploadZone
+                label="Salones"
+                onUpload={handleUploadSalones}
+                disabled={!dataset}
+                alreadyLoaded={conteo?.salones_cargados}
+                count={conteo?.salones || 0}
+              />
             </div>
           </Card>
 
@@ -341,8 +386,44 @@ export default function Datos() {
                 count={conteo?.salones}
               />
               <div style={{ flex: 1 }} />
-              {/* Botón agregar */}
-              <div style={{ padding: '0.6rem 1rem' }}>
+              {/* Botones de acción */}
+              <div style={{ padding: '0.6rem 1rem', display: 'flex', gap: 8 }}>
+                {/* Exportar a Excel */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<Download size={14} />}
+                  onClick={() => {
+                    if (tab === 'clases' && clasesFiltradas.length > 0) {
+                      exportarExcel(clasesFiltradas, [
+                        { key: 'materia', label: 'Materia' },
+                        { key: 'grupo', label: 'Grupo' },
+                        { key: 'profesor', label: 'Profesor' },
+                        { key: 'tipo', label: 'Tipo' },
+                        { key: 'horario', label: 'Horario' },
+                        { key: 'estudiantes', label: 'Estudiantes' },
+                        { key: 'requiere_videobeam', label: 'Requiere Videobeam' },
+                        { key: 'requiere_computadores', label: 'Requiere Computadores' },
+                        { key: 'requiere_laboratorio', label: 'Requiere Laboratorio' },
+                      ], `clases_${dataset?.nombre || 'export'}`)
+                    } else if (tab === 'salones' && salonesFiltrados.length > 0) {
+                      exportarExcel(salonesFiltrados, [
+                        { key: 'codigo', label: 'Código' },
+                        { key: 'bloque', label: 'Bloque' },
+                        { key: 'capacidad', label: 'Capacidad' },
+                        { key: 'tipologia', label: 'Tipología' },
+                        { key: 'tiene_videobeam', label: 'Tiene Videobeam' },
+                        { key: 'tiene_computadores', label: 'Tiene Computadores' },
+                        { key: 'es_laboratorio', label: 'Es Laboratorio' },
+                      ], `salones_${dataset?.nombre || 'export'}`)
+                    }
+                  }}
+                  disabled={(tab === 'clases' ? clasesFiltradas.length : salonesFiltrados.length) === 0}
+                >
+                  Exportar
+                </Button>
+
+                {/* Agregar */}
                 <Button
                   size="sm"
                   icon={<Plus size={14} />}
@@ -438,6 +519,15 @@ export default function Datos() {
           }
         />
       </Modal>
+
+      {/* Diálogo de confirmación estilizado */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={cerrarConfirmacion}
+      />
     </AppLayout>
   )
 }

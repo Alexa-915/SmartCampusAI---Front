@@ -15,6 +15,7 @@ class DatasetUpdate(BaseModel):
 
 class DatasetOut(BaseModel):
     id:          int
+    usuario_id:  int
     nombre:      str
     descripcion: Optional[str]
     creado_en:   datetime

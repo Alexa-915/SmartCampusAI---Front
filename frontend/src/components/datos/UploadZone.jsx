@@ -1,14 +1,15 @@
 import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Upload, FileSpreadsheet, CheckCircle, X } from 'lucide-react'
-import Button from '../ui/Button'
+import { Upload, FileSpreadsheet, CheckCircle, X, RefreshCw } from 'lucide-react'
 
 /**
  * Zona de drag & drop para subir archivos Excel.
  * onUpload: función async que recibe el File
  * label: texto descriptivo (ej: "Clases" o "Salones")
+ * alreadyLoaded: boolean — si ya hay datos cargados en el dataset
+ * count: número de registros cargados (para mostrar info persistente)
  */
-export default function UploadZone({ onUpload, label, disabled }) {
+export default function UploadZone({ onUpload, label, disabled, alreadyLoaded = false, count = 0 }) {
   const [dragging, setDragging]   = useState(false)
   const [file, setFile]           = useState(null)
   const [loading, setLoading]     = useState(false)
@@ -41,8 +42,7 @@ export default function UploadZone({ onUpload, label, disabled }) {
     e.preventDefault()
     setDragging(false)
     if (disabled) return
-    const f = e.dataTransfer.files[0]
-    handleFile(f)
+    handleFile(e.dataTransfer.files[0])
   }
 
   const onInputChange = (e) => handleFile(e.target.files[0])
@@ -54,6 +54,9 @@ export default function UploadZone({ onUpload, label, disabled }) {
     if (inputRef.current) inputRef.current.value = ''
   }
 
+  // Determinar estado visual
+  const showLoaded = !success && !loading && !file && alreadyLoaded
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <motion.div
@@ -62,8 +65,8 @@ export default function UploadZone({ onUpload, label, disabled }) {
         onDrop={onDrop}
         onClick={() => !disabled && inputRef.current?.click()}
         animate={{
-          borderColor: dragging ? 'var(--accent)' : success ? 'var(--green)' : 'var(--border)',
-          background:  dragging ? 'var(--accent-light)' : 'var(--bg-subtle)',
+          borderColor: dragging ? 'var(--accent)' : (success || showLoaded) ? 'var(--green)' : 'var(--border)',
+          background:  dragging ? 'var(--accent-light)' : showLoaded ? 'var(--green-light)' : 'var(--bg-subtle)',
         }}
         style={{
           border: '2px dashed var(--border)',
@@ -87,7 +90,7 @@ export default function UploadZone({ onUpload, label, disabled }) {
         />
 
         {/* Icono de estado */}
-        {success ? (
+        {success || showLoaded ? (
           <CheckCircle size={24} style={{ color: 'var(--green)' }} />
         ) : file && loading ? (
           <motion.div
@@ -104,6 +107,15 @@ export default function UploadZone({ onUpload, label, disabled }) {
         <div style={{ textAlign: 'center' }}>
           {success ? (
             <p style={{ color: 'var(--green)', fontWeight: 600, fontSize: '0.85rem' }}>{success}</p>
+          ) : showLoaded ? (
+            <>
+              <p style={{ color: 'var(--green-text)', fontWeight: 600, fontSize: '0.85rem' }}>
+                {count} {label.toLowerCase()} cargadas
+              </p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                <RefreshCw size={10} /> Clic para reemplazar
+              </p>
+            </>
           ) : file && loading ? (
             <p style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>Procesando {file.name}...</p>
           ) : (
@@ -118,7 +130,7 @@ export default function UploadZone({ onUpload, label, disabled }) {
           )}
         </div>
 
-        {/* Nombre del archivo cargado */}
+        {/* Nombre del archivo recién subido */}
         {file && !loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{file.name}</span>

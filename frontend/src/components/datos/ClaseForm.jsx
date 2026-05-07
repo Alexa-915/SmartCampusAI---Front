@@ -25,8 +25,30 @@ export default function ClaseForm({ inicial, onSubmit, onCancel }) {
 
   const set = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }))
 
+  // Validar que el horario esté completo (tiene inicio y fin)
+  const horarioValido = (h) => {
+    if (!h) return false
+    const parts = h.split('–')
+    return parts.length === 2 && parts[0].trim() && parts[1].trim()
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Validaciones antes de enviar
+    if (!horarioValido(form.horario)) {
+      setError('Debes seleccionar hora de inicio y fin.')
+      return
+    }
+    if (!form.materia.trim() || !form.grupo || !form.profesor.trim() || !form.tipo) {
+      setError('Completa todos los campos obligatorios.')
+      return
+    }
+    if (!form.estudiantes || parseInt(form.estudiantes) <= 0) {
+      setError('El número de estudiantes debe ser mayor a 0.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {

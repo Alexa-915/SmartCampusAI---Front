@@ -144,11 +144,23 @@ export default function TimePicker({ value, onChange, tipo, error: externalError
 
   const { inicio, fin } = parse(value)
 
+  // Cuando el usuario selecciona inicio, guardar parcialmente
+  // El valor final solo se emite cuando ambos están completos
   const setInicio = (v) => {
-    onChange(v && fin ? `${v}–${fin}` : '')
+    if (v && fin) {
+      onChange(`${v}–${fin}`)
+    } else {
+      // Guardar solo inicio — usar un formato parcial que se completa al elegir fin
+      onChange(v ? `${v}–` : '')
+    }
   }
+
   const setFin = (v) => {
-    onChange(inicio && v ? `${inicio}–${v}` : '')
+    if (inicio && v) {
+      onChange(`${inicio}–${v}`)
+    } else {
+      onChange('')
+    }
   }
 
   // ── Validaciones ──────────────────────────────────────────────────────────
