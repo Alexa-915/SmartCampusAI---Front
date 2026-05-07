@@ -14,6 +14,22 @@ API.interceptors.request.use((config) => {
   return config
 })
 
+// Si el backend responde 401 (token expirado/inválido), limpiar sesión y redirigir al login
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('usuario')
+      // Solo redirigir si no estamos ya en login/register
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // ── Auth ──────────────────────────────────────────────────────────────────
 export const register = (datos) => API.post('/api/auth/register', datos)
 export const login    = (datos) => API.post('/api/auth/login', datos)

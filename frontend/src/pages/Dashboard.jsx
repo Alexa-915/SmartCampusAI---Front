@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, Calendar, TrendingUp, Building2, Play, RefreshCw } from 'lucide-react'
-import { getResumen, resolverCSP } from '../services/api'
+import { getResumen, resolverCSP, getDatasets } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
@@ -13,45 +13,70 @@ import Loader from '../components/ui/Loader'
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 
 export default function Dashboard() {
-  const [resumen, setResumen]     = useState(null)
-  const [loading, setLoading]     = useState(true)
-  const [running, setRunning]     = useState(false)
-  const [alert, setAlert]         = useState(null) // { type, message }
+  const [resumen, setResumen]       = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [running, setRunning]       = useState(false)
+  const [alert, setAlert]           = useState(null)
+  const [datasets, setDatasets]     = useState([])
+  const [datasetId, setDatasetId]   = useState(null)
 
   const { usuario } = useAuth()
   const isAdmin = usuario?.rol === 'admin'
 
-  const fetchResumen = () => {
+  // Cargar datasets al montar y seleccionar el primero
+  useEffect(() => {
+    getDatasets()
+      .then(res => {
+        setDatasets(res.data)
+        if (res.data.length > 0) {
+          setDatasetId(res.data[0].id)
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        setAlert({ type: 'error', message: 'No se pudo conectar con el servidor.' })
+        setLoading(false)
+      })
+  }, [])
+
+  // Cuando cambia el dataset seleccionado, cargar su resumen
+  useEffect(() => {
+    if (!datasetId) return
+    fetchResumen(datasetId)
+  }, [datasetId])
+
+  const fetchResumen = (id) => {
     setLoading(true)
-    getResumen()
+    getResumen(id)
       .then(res => setResumen(res.data))
-      .catch(() => setAlert({ type: 'error', message: 'No se pudo conectar con el servidor.' }))
+      .catch(() => setResumen(null))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { fetchResumen() }, [])
-
   const handleResolver = async () => {
+    if (!datasetId) {
+      setAlert({ type: 'error', message: 'No hay dataset seleccionado. Ve a Datos y crea uno primero.' })
+      return
+    }
     setRunning(true)
     setAlert(null)
     try {
-      const res = await resolverCSP()
+      const res = await resolverCSP(datasetId)
       setAlert({
         type: 'success',
         message: `Solver completado — ${res.data.asignadas} asignadas, ${res.data.no_asignadas} sin asignar (${res.data.pct_exito}% éxito)`,
       })
-      fetchResumen()
+      fetchResumen(datasetId)
     } catch {
-      setAlert({ type: 'error', message: 'Error al ejecutar el solver. Verifica que el backend esté activo.' })
+      setAlert({ type: 'error', message: 'Error al ejecutar el solver. Verifica que el dataset tenga clases y salones cargados.' })
     } finally {
       setRunning(false)
     }
   }
 
   const maxDia = resumen ? Math.max(...DIAS.map(d => resumen.por_dia?.[d] || 0), 1) : 1
-  const pctExito = resumen?.total_asignadas
-    ? Math.round(resumen.total_asignadas / 329 * 100)
-    : 0
+  const pctExito = resumen?.total_asignadas ? Math.round(resumen.total_asignadas / Math.max(resumen.total_asignadas, 1) * 100) : 0
 
   return (
     <AppLayout>
@@ -65,7 +90,24 @@ export default function Dashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />} onClick={fetchResumen}>
+          {/* Selector de dataset */}
+          {datasets.length > 0 && (
+            <select
+              value={datasetId || ''}
+              onChange={e => setDatasetId(Number(e.target.value))}
+              style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)', padding: '6px 10px',
+                fontSize: '0.8rem', color: 'var(--text-primary)',
+                fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              {datasets.map(ds => (
+                <option key={ds.id} value={ds.id}>{ds.nombre}</option>
+              ))}
+            </select>
+          )}
+          <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />} onClick={() => fetchResumen(datasetId)}>
             Actualizar
           </Button>
           {isAdmin && (
