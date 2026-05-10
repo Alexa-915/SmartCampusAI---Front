@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X, Download, FileText } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -15,7 +15,9 @@ import UploadZone from '../components/datos/UploadZone'
 import ClaseForm from '../components/datos/ClaseForm'
 import SalonForm from '../components/datos/SalonForm'
 import { exportarExcel } from '../utils/exportExcel'
+import { exportarPDF } from '../utils/exportPDF'
 import { useDataset } from '../context/DatasetContext'
+import { useAuth } from '../context/AuthContext'
 import {
   getDatasets, crearDataset, eliminarDataset,
   crearClase, actualizarClase, eliminarClase,
@@ -31,6 +33,7 @@ export default function Datos() {
   } = useDataset()
 
   // ── Estado local de la página ───────────────────────────────────────────
+  const { usuario } = useAuth()
   const [datasets, setDatasets]     = useState([])
   const [tab, setTab]               = useState('clases')
   const [alert, setAlert]           = useState(null)
@@ -388,7 +391,55 @@ export default function Datos() {
                   }}
                   disabled={(tab === 'clases' ? clasesFiltradas.length : salonesFiltrados.length) === 0}
                 >
-                  Exportar
+                  Excel
+                </Button>
+
+                {/* Exportar a PDF */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<FileText size={14} />}
+                  onClick={() => {
+                    const cols = tab === 'clases'
+                      ? [
+                          { key: 'materia', label: 'Materia' },
+                          { key: 'grupo', label: 'Grupo' },
+                          { key: 'profesor', label: 'Profesor' },
+                          { key: 'tipo', label: 'Tipo' },
+                          { key: 'horario', label: 'Horario' },
+                          { key: 'estudiantes', label: 'Estudiantes' },
+                          { key: 'requiere_videobeam', label: 'Videobeam' },
+                          { key: 'requiere_computadores', label: 'Computadores' },
+                          { key: 'requiere_laboratorio', label: 'Laboratorio' },
+                        ]
+                      : [
+                          { key: 'codigo', label: 'Código' },
+                          { key: 'bloque', label: 'Bloque' },
+                          { key: 'capacidad', label: 'Capacidad' },
+                          { key: 'tipologia', label: 'Tipología' },
+                          { key: 'tiene_videobeam', label: 'Videobeam' },
+                          { key: 'tiene_computadores', label: 'Computadores' },
+                          { key: 'es_laboratorio', label: 'Laboratorio' },
+                        ]
+                    const datos = tab === 'clases' ? clasesFiltradas : salonesFiltrados
+                    const tipo  = tab === 'clases' ? 'Clases' : 'Salones'
+
+                    exportarPDF({
+                      titulo: `Reporte de ${tipo}`,
+                      subtitulo: `Listado completo de ${tipo.toLowerCase()} registradas en el sistema`,
+                      dataset: dataset?.nombre || '',
+                      usuario: usuario?.nombre || '',
+                      columns: cols,
+                      data: datos,
+                      estadisticas: tab === 'clases'
+                        ? { 'Total clases': clasesFiltradas.length, 'Con videobeam': clasesFiltradas.filter(c => c.requiere_videobeam).length, 'Con computadores': clasesFiltradas.filter(c => c.requiere_computadores).length, 'Laboratorio': clasesFiltradas.filter(c => c.requiere_laboratorio).length }
+                        : { 'Total salones': salonesFiltrados.length, 'Con videobeam': salonesFiltrados.filter(s => s.tiene_videobeam).length, 'Con computadores': salonesFiltrados.filter(s => s.tiene_computadores).length, 'Laboratorios': salonesFiltrados.filter(s => s.es_laboratorio).length },
+                      filename: `${tipo.toLowerCase()}_${dataset?.nombre || 'reporte'}`,
+                    })
+                  }}
+                  disabled={(tab === 'clases' ? clasesFiltradas.length : salonesFiltrados.length) === 0}
+                >
+                  PDF
                 </Button>
 
                 {/* Agregar */}
