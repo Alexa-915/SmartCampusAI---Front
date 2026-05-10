@@ -14,6 +14,22 @@ def _verificar_dataset(dataset_id: int, db: Session):
         raise HTTPException(status_code=404, detail="Dataset no encontrado")
 
 
+def _verificar_duplicado_salon(db: Session, dataset_id: int, codigo: str, bloque: str, excluir_id: int = None):
+    """Verifica que no exista otro salón con el mismo código+bloque en el dataset."""
+    query = db.query(Salon).filter(
+        Salon.dataset_id == dataset_id,
+        Salon.codigo == codigo,
+        Salon.bloque == bloque,
+    )
+    if excluir_id:
+        query = query.filter(Salon.id != excluir_id)
+    if query.first():
+        raise HTTPException(
+            status_code=409,
+            detail=f'Ya existe un salón "{codigo}" en el bloque "{bloque}" en este dataset.'
+        )
+
+
 @router.get("/", response_model=list[SalonOut])
 def listar_salones(dataset_id: int, db: Session = Depends(get_db)):
     """Lista todos los salones de un dataset. Requiere ?dataset_id=X"""
@@ -33,6 +49,8 @@ def obtener_salon(salon_id: int, db: Session = Depends(get_db)):
 def crear_salon(datos: SalonCreate, db: Session = Depends(get_db)):
     """Crea un salón manualmente en un dataset."""
     _verificar_dataset(datos.dataset_id, db)
+    _verificar_duplicado_salon(db, datos.dataset_id, datos.codigo, datos.bloque or '')
+
     salon = Salon(**datos.model_dump())
     db.add(salon)
     db.commit()
@@ -45,6 +63,10 @@ def actualizar_salon(salon_id: int, datos: SalonUpdate, db: Session = Depends(ge
     salon = db.query(Salon).filter(Salon.id == salon_id).first()
     if not salon:
         raise HTTPException(status_code=404, detail="Salón no encontrado")
+
+    codigo_final = datos.codigo if datos.codigo is not None else salon.codigo
+    bloque_final = datos.bloque if datos.bloque is not None else (salon.bloque or '')
+    _verificar_duplicado_salon(db, salon.dataset_id, codigo_final, bloque_final, excluir_id=salon.id)
 
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(salon, campo, valor)

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X, Download } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
@@ -15,24 +15,26 @@ import UploadZone from '../components/datos/UploadZone'
 import ClaseForm from '../components/datos/ClaseForm'
 import SalonForm from '../components/datos/SalonForm'
 import { exportarExcel } from '../utils/exportExcel'
+import { useDataset } from '../context/DatasetContext'
 import {
-  getDatasets, crearDataset, eliminarDataset, conteoDataset,
-  getClases, crearClase, actualizarClase, eliminarClase,
-  getSalones, crearSalon, actualizarSalon, eliminarSalon,
-  uploadClases, uploadSalones,
+  getDatasets, crearDataset, eliminarDataset,
+  crearClase, actualizarClase, eliminarClase,
+  crearSalon, actualizarSalon, eliminarSalon,
+  uploadClases, uploadSalones, borrarClasesDataset, borrarSalonesDataset,
 } from '../services/api'
 
 export default function Datos() {
-  // ── Estado global de la página ──────────────────────────────────────────
+  // ── Estado del contexto global (persiste entre navegaciones) ─────────────
+  const {
+    dataset, clases, salones, conteo, loading,
+    seleccionarDataset, refrescarTodo, limpiar,
+  } = useDataset()
+
+  // ── Estado local de la página ───────────────────────────────────────────
   const [datasets, setDatasets]     = useState([])
-  const [dataset, setDataset]       = useState(null)   // dataset activo
-  const [conteo, setConteo]         = useState(null)
-  const [tab, setTab]               = useState('clases') // 'clases' | 'salones'
-  const [clases, setClases]         = useState([])
-  const [salones, setSalones]       = useState([])
-  const [loading, setLoading]       = useState(false)
+  const [tab, setTab]               = useState('clases')
   const [alert, setAlert]           = useState(null)
-  const [busqueda, setBusqueda]     = useState('')  // filtro de búsqueda
+  const [busqueda, setBusqueda]     = useState('')
 
   // ── Estado de modales ────────────────────────────────────────────────────
   const [modalClase, setModalClase]   = useState(false)
@@ -59,66 +61,10 @@ export default function Datos() {
     try {
       const res = await getDatasets()
       setDatasets(res.data)
-      // Si solo hay uno, seleccionarlo automáticamente
-      if (res.data.length === 1) seleccionarDataset(res.data[0])
+      // Si hay uno solo y no hay dataset seleccionado, seleccionarlo
+      if (res.data.length === 1 && !dataset) seleccionarDataset(res.data[0])
     } catch {
       setAlert({ type: 'error', message: 'No se pudieron cargar los datasets' })
-    }
-  }
-
-  // Cargar datos del dataset seleccionado
-  const seleccionarDataset = useCallback(async (ds) => {
-    setDataset(ds)
-    setLoading(true)
-    try {
-      const [cRes, sRes, ctRes] = await Promise.all([
-        getClases(ds.id),
-        getSalones(ds.id),
-        conteoDataset(ds.id),
-      ])
-      setClases(cRes.data)
-      setSalones(sRes.data)
-      setConteo(ctRes.data)
-    } catch {
-      setAlert({ type: 'error', message: 'Error al cargar los datos del dataset' })
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Refrescar ambas listas y el conteo (usado después de uploads y CRUD)
-  const refrescarTodo = async (dsId) => {
-    const id = dsId ?? dataset?.id
-    if (!id) return
-    try {
-      const [cRes, sRes, ctRes] = await Promise.all([
-        getClases(id),
-        getSalones(id),
-        conteoDataset(id),
-      ])
-      setClases(cRes.data)
-      setSalones(sRes.data)
-      setConteo(ctRes.data)
-    } catch {
-      setAlert({ type: 'error', message: 'Error al actualizar los datos' })
-    }
-  }
-
-  // Refrescar solo la pestaña activa (para operaciones CRUD individuales)
-  const refrescarTab = async () => {
-    if (!dataset) return
-    try {
-      if (tab === 'clases') {
-        const res = await getClases(dataset.id)
-        setClases(res.data)
-      } else {
-        const res = await getSalones(dataset.id)
-        setSalones(res.data)
-      }
-      const ct = await conteoDataset(dataset.id)
-      setConteo(ct.data)
-    } catch {
-      setAlert({ type: 'error', message: 'Error al actualizar los datos' })
     }
   }
 
@@ -137,12 +83,7 @@ export default function Datos() {
       async () => {
         cerrarConfirmacion()
         await eliminarDataset(ds.id)
-        if (dataset?.id === ds.id) {
-          setDataset(null)
-          setClases([])
-          setSalones([])
-          setConteo(null)
-        }
+        if (dataset?.id === ds.id) limpiar()
         await fetchDatasets()
         setAlert({ type: 'success', message: `Dataset "${ds.nombre}" eliminado` })
       }
@@ -152,14 +93,40 @@ export default function Datos() {
   // ── Upload Excel ─────────────────────────────────────────────────────────
   const handleUploadClases = async (archivo) => {
     const res = await uploadClases(dataset.id, archivo)
-    await refrescarTodo()   // refresca ambas listas para mantener conteos correctos
+    await refrescarTodo()
     return res
   }
 
   const handleUploadSalones = async (archivo) => {
     const res = await uploadSalones(dataset.id, archivo)
-    await refrescarTodo()   // ídem
+    await refrescarTodo()
     return res
+  }
+
+  const handleBorrarClases = () => {
+    pedirConfirmacion(
+      '¿Eliminar clases?',
+      'Se eliminarán todas las clases cargadas en este dataset.',
+      async () => {
+        cerrarConfirmacion()
+        await borrarClasesDataset(dataset.id)
+        await refrescarTodo()
+        setAlert({ type: 'success', message: 'Clases eliminadas correctamente' })
+      }
+    )
+  }
+
+  const handleBorrarSalones = () => {
+    pedirConfirmacion(
+      '¿Eliminar salones?',
+      'Se eliminarán todos los salones cargados en este dataset.',
+      async () => {
+        cerrarConfirmacion()
+        await borrarSalonesDataset(dataset.id)
+        await refrescarTodo()
+        setAlert({ type: 'success', message: 'Salones eliminados correctamente' })
+      }
+    )
   }
 
   // ── CRUD Clases ──────────────────────────────────────────────────────────
@@ -200,7 +167,6 @@ export default function Datos() {
     }
     setModalSalon(false)
     setEditSalon(null)
-    // Refrescar todo para que bloques/tipologías nuevas aparezcan inmediatamente
     await refrescarTodo()
   }
 
@@ -353,6 +319,7 @@ export default function Datos() {
               <UploadZone
                 label="Clases"
                 onUpload={handleUploadClases}
+                onDelete={handleBorrarClases}
                 disabled={!dataset}
                 alreadyLoaded={conteo?.clases_cargadas}
                 count={conteo?.clases || 0}
@@ -360,6 +327,7 @@ export default function Datos() {
               <UploadZone
                 label="Salones"
                 onUpload={handleUploadSalones}
+                onDelete={handleBorrarSalones}
                 disabled={!dataset}
                 alreadyLoaded={conteo?.salones_cargados}
                 count={conteo?.salones || 0}

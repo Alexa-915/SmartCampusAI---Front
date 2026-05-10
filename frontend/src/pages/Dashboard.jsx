@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, Calendar, TrendingUp, Building2, Play, RefreshCw } from 'lucide-react'
 import { getResumen, resolverCSP, getDatasets } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useDataset } from '../context/DatasetContext'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -18,19 +19,21 @@ export default function Dashboard() {
   const [running, setRunning]       = useState(false)
   const [alert, setAlert]           = useState(null)
   const [datasets, setDatasets]     = useState([])
-  const [datasetId, setDatasetId]   = useState(null)
 
   const { usuario } = useAuth()
+  const { dataset, seleccionarDataset } = useDataset()
   const isAdmin = usuario?.rol === 'admin'
+  const datasetId = dataset?.id || null
 
-  // Cargar datasets al montar y seleccionar el primero
+  // Cargar datasets al montar
   useEffect(() => {
     getDatasets()
       .then(res => {
         setDatasets(res.data)
-        if (res.data.length > 0) {
-          setDatasetId(res.data[0].id)
-        } else {
+        // Si hay datasets pero ninguno seleccionado en el contexto, seleccionar el primero
+        if (res.data.length > 0 && !dataset) {
+          seleccionarDataset(res.data[0])
+        } else if (res.data.length === 0) {
           setLoading(false)
         }
       })
@@ -94,7 +97,10 @@ export default function Dashboard() {
           {datasets.length > 0 && (
             <select
               value={datasetId || ''}
-              onChange={e => setDatasetId(Number(e.target.value))}
+              onChange={e => {
+                const ds = datasets.find(d => d.id === Number(e.target.value))
+                if (ds) seleccionarDataset(ds)
+              }}
               style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)', padding: '6px 10px',

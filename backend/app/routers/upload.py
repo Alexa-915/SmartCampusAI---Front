@@ -217,3 +217,37 @@ def conteo_dataset(
         "clases_cargadas":  n_clases > 0,   # indica si ya se subió un archivo
         "salones_cargados": n_salones > 0,
     }
+
+
+@router.delete("/{dataset_id}/clases", status_code=204)
+def eliminar_clases_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
+    """Elimina todas las clases de un dataset (sin borrar el dataset)."""
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.usuario_id == usuario.id,
+    ).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset no encontrado")
+    db.query(Clase).filter(Clase.dataset_id == dataset_id).delete()
+    db.commit()
+
+
+@router.delete("/{dataset_id}/salones", status_code=204)
+def eliminar_salones_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
+    """Elimina todos los salones de un dataset (sin borrar el dataset)."""
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.usuario_id == usuario.id,
+    ).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset no encontrado")
+    db.query(Salon).filter(Salon.dataset_id == dataset_id).delete()
+    db.commit()

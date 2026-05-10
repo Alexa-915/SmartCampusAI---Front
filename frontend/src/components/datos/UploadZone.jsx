@@ -1,21 +1,32 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Upload, FileSpreadsheet, CheckCircle, X, RefreshCw } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle, X, RefreshCw, Trash2 } from 'lucide-react'
 
 /**
  * Zona de drag & drop para subir archivos Excel.
  * onUpload: función async que recibe el File
+ * onDelete: función async para eliminar los datos cargados
  * label: texto descriptivo (ej: "Clases" o "Salones")
  * alreadyLoaded: boolean — si ya hay datos cargados en el dataset
  * count: número de registros cargados (para mostrar info persistente)
  */
-export default function UploadZone({ onUpload, label, disabled, alreadyLoaded = false, count = 0 }) {
+export default function UploadZone({ onUpload, onDelete, label, disabled, alreadyLoaded = false, count = 0 }) {
   const [dragging, setDragging]   = useState(false)
   const [file, setFile]           = useState(null)
   const [loading, setLoading]     = useState(false)
   const [success, setSuccess]     = useState('')
   const [error, setError]         = useState('')
   const inputRef                  = useRef()
+
+  // Resetear estado visual cuando los datos se eliminan externamente
+  // (alreadyLoaded pasa de true a false después de borrar)
+  useEffect(() => {
+    if (!alreadyLoaded && count === 0) {
+      setFile(null)
+      setSuccess('')
+      setError('')
+    }
+  }, [alreadyLoaded, count])
 
   const handleFile = async (f) => {
     if (!f) return
@@ -143,6 +154,32 @@ export default function UploadZone({ onUpload, label, disabled, alreadyLoaded = 
           </div>
         )}
       </motion.div>
+
+      {/* Botón eliminar datos — solo aparece si hay datos cargados */}
+      {(showLoaded || success) && onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: '6px 12px',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--red)',
+            fontSize: '0.78rem',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            transition: 'all var(--transition)',
+            width: '100%',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)' }}
+        >
+          <Trash2 size={12} />
+          Eliminar {label.toLowerCase()} cargadas
+        </button>
+      )}
 
       {/* Error */}
       {error && (

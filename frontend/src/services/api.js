@@ -53,6 +53,8 @@ export const uploadSalones = (datasetId, archivo) => {
   form.append('archivo', archivo)
   return API.post(`/api/datasets/${datasetId}/upload/salones`, form)
 }
+export const borrarClasesDataset  = (datasetId) => API.delete(`/api/datasets/${datasetId}/clases`)
+export const borrarSalonesDataset = (datasetId) => API.delete(`/api/datasets/${datasetId}/salones`)
 
 // ── Clases ────────────────────────────────────────────────────────────────
 export const getClases      = (datasetId)        => API.get('/api/clases/', { params: { dataset_id: datasetId } })
