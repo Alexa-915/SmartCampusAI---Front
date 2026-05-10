@@ -15,6 +15,10 @@ export function DatasetProvider({ children }) {
   const [conteo, setConteo]     = useState(null)
   const [loading, setLoading]   = useState(false)
 
+  // Errores de validación del último upload (para colorear filas)
+  const [erroresClases, setErroresClases]   = useState([])
+  const [erroresSalones, setErroresSalones] = useState([])
+
   // Seleccionar un dataset y cargar sus datos
   const seleccionarDataset = useCallback(async (ds) => {
     if (!ds) {
@@ -69,6 +73,8 @@ export function DatasetProvider({ children }) {
     setClases([])
     setSalones([])
     setConteo(null)
+    setErroresClases([])
+    setErroresSalones([])
   }, [])
 
   return (
@@ -76,6 +82,8 @@ export function DatasetProvider({ children }) {
       dataset, clases, salones, conteo, loading,
       seleccionarDataset, refrescarTodo, limpiar,
       setClases, setSalones, setConteo,
+      erroresClases, setErroresClases,
+      erroresSalones, setErroresSalones,
     }}>
       {children}
     </DatasetContext.Provider>

@@ -14,6 +14,7 @@ import DatasetSelector from '../components/datos/DatasetSelector'
 import UploadZone from '../components/datos/UploadZone'
 import ClaseForm from '../components/datos/ClaseForm'
 import SalonForm from '../components/datos/SalonForm'
+import ValidacionPreview from '../components/datos/ValidacionPreview'
 import { exportarExcel } from '../utils/exportExcel'
 import { exportarPDF } from '../utils/exportPDF'
 import { useDataset } from '../context/DatasetContext'
@@ -23,6 +24,7 @@ import {
   crearClase, actualizarClase, eliminarClase,
   crearSalon, actualizarSalon, eliminarSalon,
   uploadClases, uploadSalones, borrarClasesDataset, borrarSalonesDataset,
+  validarClasesExcel, validarSalonesExcel,
 } from '../services/api'
 
 export default function Datos() {
@@ -30,6 +32,8 @@ export default function Datos() {
   const {
     dataset, clases, salones, conteo, loading,
     seleccionarDataset, refrescarTodo, limpiar,
+    erroresClases, setErroresClases,
+    erroresSalones, setErroresSalones,
   } = useDataset()
 
   // ── Estado local de la página ───────────────────────────────────────────
@@ -45,6 +49,14 @@ export default function Datos() {
   const [editClase, setEditClase]     = useState(null)  // null = crear, obj = editar
   const [editSalon, setEditSalon]     = useState(null)
 
+  // Estado de validación de Excel (preview antes de cargar)
+  const [modalValidacion, setModalValidacion] = useState(false)
+  const [validacionResult, setValidacionResult] = useState(null)
+  const [archivoClasesPendiente, setArchivoClasesPendiente] = useState(null)
+  const [archivoSalonesPendiente, setArchivoSalonesPendiente] = useState(null)
+  const [cargandoValidacion, setCargandoValidacion] = useState(false)
+  const [tipoValidacion, setTipoValidacion] = useState('clases') // 'clases' | 'salones'
+
   // Estado del diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
     open: false, title: '', message: '', onConfirm: null,
@@ -59,6 +71,67 @@ export default function Datos() {
 
   // ── Cargar datasets al montar ────────────────────────────────────────────
   useEffect(() => { fetchDatasets() }, [])
+
+  // Catálogo literal de horas válidas (mismo que el backend)
+  const HORAS_VALIDAS = new Set([
+    "6:00", "6:30", "7:00", "7:30", "8:00", "8:30", "9:00", "9:30",
+    "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
+    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
+    "19:00", "19:30", "20:00", "20:30", "21:00",
+    "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
+  ])
+
+  // Re-validar automáticamente cuando cambian los datos
+  // Detecta: duplicados (error) + horarios fuera del catálogo (advertencia)
+  useEffect(() => {
+    if (erroresClases.length > 0 || clases.length > 0) {
+      const nuevos = []
+      const vistos = {}
+      clases.forEach((c, i) => {
+        const fila = i + 2
+
+        // Duplicados materia + grupo
+        const clave = `${(c.materia || '').toLowerCase()}|${(c.grupo || '').toLowerCase()}`
+        if (clave in vistos) {
+          nuevos.push({ fila, campo: 'materia/grupo', valor: `${c.materia} - ${c.grupo}`, mensaje: `"${c.materia} - ${c.grupo}" está duplicada.`, tipo: 'error' })
+        } else {
+          vistos[clave] = fila
+        }
+
+        // Horarios fuera del catálogo
+        const horario = (c.horario || '').trim()
+        if (horario && horario.includes('–')) {
+          const partes = horario.split('–')
+          const inicio = partes[0]?.trim()
+          const fin = partes[1]?.trim()
+          if (inicio && !HORAS_VALIDAS.has(inicio)) {
+            nuevos.push({ fila, campo: 'horario', valor: inicio, mensaje: `Hora de inicio "${inicio}" no está en el catálogo del sistema.`, tipo: 'advertencia' })
+          }
+          if (fin && !HORAS_VALIDAS.has(fin)) {
+            nuevos.push({ fila, campo: 'horario', valor: fin, mensaje: `Hora de fin "${fin}" no está en el catálogo del sistema.`, tipo: 'advertencia' })
+          }
+        }
+      })
+      setErroresClases(nuevos)
+    }
+  }, [clases])
+
+  useEffect(() => {
+    if (erroresSalones.length > 0 || salones.length > 0) {
+      const nuevos = []
+      const vistos = {}
+      salones.forEach((s, i) => {
+        const clave = `${(s.codigo || '').toLowerCase()}|${(s.bloque || '').toLowerCase()}`
+        if (clave in vistos) {
+          nuevos.push({ fila: i + 2, campo: 'codigo/bloque', valor: `${s.codigo} - ${s.bloque}`, mensaje: `"${s.codigo}" en "${s.bloque}" está duplicado.`, tipo: 'error' })
+        } else {
+          vistos[clave] = i + 2
+        }
+      })
+      setErroresSalones(nuevos)
+    }
+  }, [salones])
 
   const fetchDatasets = async () => {
     try {
@@ -94,16 +167,60 @@ export default function Datos() {
   }
 
   // ── Upload Excel ─────────────────────────────────────────────────────────
+  // Clases: valida primero, muestra preview, carga solo si el usuario confirma
   const handleUploadClases = async (archivo) => {
-    const res = await uploadClases(dataset.id, archivo)
-    await refrescarTodo()
-    return res
+    const res = await validarClasesExcel(dataset.id, archivo)
+    setValidacionResult(res.data)
+    setArchivoClasesPendiente(archivo)
+    setTipoValidacion('clases')
+    setModalValidacion(true)
+    // Retornar sin mensaje de éxito — el UploadZone no debe mostrar "cargado" todavía
+    // El éxito real se muestra después de confirmar en el modal
+    return { data: {} }
   }
 
+  const cancelarValidacion = () => {
+    setModalValidacion(false)
+    setValidacionResult(null)
+    setArchivoClasesPendiente(null)
+    setArchivoSalonesPendiente(null)
+  }
+
+  // Salones: también valida primero
   const handleUploadSalones = async (archivo) => {
-    const res = await uploadSalones(dataset.id, archivo)
-    await refrescarTodo()
-    return res
+    const res = await validarSalonesExcel(dataset.id, archivo)
+    setValidacionResult(res.data)
+    setArchivoSalonesPendiente(archivo)
+    setTipoValidacion('salones')
+    setModalValidacion(true)
+    return { data: {} }
+  }
+
+  // Confirmar carga genérica (funciona para clases y salones)
+  const confirmarCarga = async () => {
+    setCargandoValidacion(true)
+    try {
+      if (archivoClasesPendiente) {
+        await uploadClases(dataset.id, archivoClasesPendiente)
+        // Guardar errores para colorear filas después
+        if (validacionResult) {
+          setErroresClases([...(validacionResult.errores || []), ...(validacionResult.advertencias || [])])
+        }
+        setAlert({ type: 'success', message: 'Clases cargadas correctamente' })
+      } else if (archivoSalonesPendiente) {
+        await uploadSalones(dataset.id, archivoSalonesPendiente)
+        if (validacionResult) {
+          setErroresSalones([...(validacionResult.errores || []), ...(validacionResult.advertencias || [])])
+        }
+        setAlert({ type: 'success', message: 'Salones cargados correctamente' })
+      }
+      await refrescarTodo()
+      cancelarValidacion()
+    } catch (err) {
+      setAlert({ type: 'error', message: err.response?.data?.detail || 'Error al cargar' })
+    } finally {
+      setCargandoValidacion(false)
+    }
   }
 
   const handleBorrarClases = () => {
@@ -144,6 +261,22 @@ export default function Datos() {
     setModalClase(false)
     setEditClase(null)
     await refrescarTodo()
+    // Los useEffect de re-validación se encargan de actualizar los colores
+  }
+
+  // Re-validar clases después de editar (solo duplicados materia+grupo)
+  const revalidarClases = () => {
+    const nuevosErrores = []
+    const vistos = {}
+    clases.forEach((c, i) => {
+      const clave = `${(c.materia || '').toLowerCase()}|${(c.grupo || '').toLowerCase()}`
+      if (clave in vistos) {
+        nuevosErrores.push({ fila: i + 2, campo: 'materia/grupo', valor: `${c.materia} - ${c.grupo}`, mensaje: `"${c.materia} - ${c.grupo}" está duplicada.`, tipo: 'error' })
+      } else {
+        vistos[clave] = i + 2
+      }
+    })
+    setErroresClases(nuevosErrores)
   }
 
   const handleEliminarClase = async (clase) => {
@@ -490,12 +623,25 @@ export default function Datos() {
                   columns={COLS_CLASES}
                   data={clasesFiltradas}
                   emptyText={busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay clases en este dataset. Sube un Excel o agrega una manualmente.'}
+                  rowStatus={(row, i) => {
+                    // Mapear errores de validación a filas (fila del Excel = index + 2)
+                    const filaExcel = i + 2
+                    const err = erroresClases.find(e => e.fila === filaExcel)
+                    if (!err) return null
+                    return err.tipo === 'error' ? 'error' : 'warning'
+                  }}
                 />
               ) : (
                 <Table
                   columns={COLS_SALONES}
                   data={salonesFiltrados}
                   emptyText={busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay salones en este dataset. Sube un Excel o agrega uno manualmente.'}
+                  rowStatus={(row, i) => {
+                    const filaExcel = i + 2
+                    const err = erroresSalones.find(e => e.fila === filaExcel)
+                    if (!err) return null
+                    return err.tipo === 'error' ? 'error' : 'warning'
+                  }}
                 />
               )}
             </div>
@@ -514,6 +660,13 @@ export default function Datos() {
           inicial={editClase}
           onSubmit={handleGuardarClase}
           onCancel={() => { setModalClase(false); setEditClase(null) }}
+          clasesExistentes={clases}
+          errorInicial={(() => {
+            if (!editClase) return ''
+            const idx = clases.findIndex(c => c.id === editClase.id)
+            const err = erroresClases.find(e => e.fila === idx + 2)
+            return err?.mensaje || ''
+          })()}
         />
       </Modal>
 
@@ -529,13 +682,27 @@ export default function Datos() {
           onSubmit={handleGuardarSalon}
           onCancel={() => { setModalSalon(false); setEditSalon(null) }}
           bloquesExistentes={
-            // Extraer bloques únicos del dataset actual, ignorar nulos/vacíos
             [...new Set(salones.map(s => s.bloque).filter(Boolean))].sort()
           }
           tipologiasExistentes={
-            // Extraer tipologías únicas del dataset actual, ignorar nulos/vacíos
             [...new Set(salones.map(s => s.tipologia).filter(Boolean))].sort()
           }
+          salonesExistentes={salones}
+        />
+      </Modal>
+
+      {/* Modal de validación de Excel */}
+      <Modal
+        open={modalValidacion}
+        onClose={cancelarValidacion}
+        title={`Validación del archivo de ${tipoValidacion}`}
+        width={700}
+      >
+        <ValidacionPreview
+          resultado={validacionResult}
+          onConfirmar={confirmarCarga}
+          onCancelar={cancelarValidacion}
+          loading={cargandoValidacion}
         />
       </Modal>
 

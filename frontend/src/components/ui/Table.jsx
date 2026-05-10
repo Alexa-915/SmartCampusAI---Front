@@ -3,14 +3,14 @@
  * columns: [{ key, label, render? }]
  * data: array de objetos
  * numbered: muestra columna # al inicio (solo visual, no viene de la BD)
+ * rowStatus: función (row, index) => 'error' | 'warning' | null — para colorear filas
  */
-export default function Table({ columns, data, emptyText = 'Sin datos', numbered = true }) {
+export default function Table({ columns, data, emptyText = 'Sin datos', numbered = true, rowStatus }) {
   return (
     <div style={s.wrapper}>
       <table style={s.table}>
         <thead>
           <tr>
-            {/* Columna de numeración — solo visual */}
             {numbered && <th style={{ ...s.th, ...s.thNum }}>#</th>}
             {columns.map(col => (
               <th key={col.key} style={s.th}>{col.label}</th>
@@ -25,14 +25,18 @@ export default function Table({ columns, data, emptyText = 'Sin datos', numbered
               </td>
             </tr>
           ) : (
-            data.map((row, i) => (
+            data.map((row, i) => {
+              const status = rowStatus ? rowStatus(row, i) : null
+              const rowBg = status === 'error' ? 'var(--red-light)'
+                          : status === 'warning' ? 'var(--yellow-light)'
+                          : 'transparent'
+              return (
               <tr
                 key={row.id ?? i}
-                style={s.tr}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ ...s.tr, background: rowBg }}
+                onMouseEnter={e => e.currentTarget.style.background = status ? rowBg : 'var(--bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = rowBg}
               >
-                {/* Número de fila — siempre refleja la posición actual en la lista */}
                 {numbered && (
                   <td style={{ ...s.td, ...s.tdNum }}>{i + 1}</td>
                 )}
@@ -42,7 +46,8 @@ export default function Table({ columns, data, emptyText = 'Sin datos', numbered
                   </td>
                 ))}
               </tr>
-            ))
+              )
+            })
           )}
         </tbody>
       </table>

@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { AlertTriangle } from 'lucide-react'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
 import Button from '../ui/Button'
@@ -14,14 +16,13 @@ const EMPTY = {
  * bloquesExistentes / tipologiasExistentes: opciones dinámicas del dataset.
  * Si el usuario necesita un valor nuevo, puede cambiar a modo "escribir".
  */
-export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistentes = [], tipologiasExistentes = [] }) {
+export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistentes = [], tipologiasExistentes = [], salonesExistentes = [] }) {
   const [form, setForm]       = useState(inicial ?? EMPTY)
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
 
   // Modo de entrada para bloque y tipología: 'select' o 'input'
   const [bloqueMode, setBloqueMode] = useState(() => {
-    // Si el valor inicial no está en las opciones existentes, empezar en modo input
     if (inicial?.bloque && !bloquesExistentes.includes(inicial.bloque)) return 'input'
     return bloquesExistentes.length > 0 ? 'select' : 'input'
   })
@@ -32,6 +33,17 @@ export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistent
 
   const set = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }))
 
+  // ── Validación de duplicados en tiempo real ─────────────────────────────
+  const duplicado = useMemo(() => {
+    if (!form.codigo.trim() || !form.bloque) return ''
+    const existe = salonesExistentes.find(s =>
+      s.codigo?.toLowerCase() === form.codigo.trim().toLowerCase() &&
+      s.bloque?.toLowerCase() === (form.bloque || '').toLowerCase() &&
+      s.id !== inicial?.id
+    )
+    return existe ? `Ya existe un salón "${form.codigo}" en "${form.bloque}".` : ''
+  }, [form.codigo, form.bloque, salonesExistentes, inicial])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.codigo.trim()) {
@@ -40,6 +52,10 @@ export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistent
     }
     if (!form.capacidad || parseInt(form.capacidad) <= 0) {
       setError('La capacidad debe ser mayor a 0.')
+      return
+    }
+    if (duplicado) {
+      setError(duplicado)
       return
     }
     setLoading(true)
@@ -58,6 +74,27 @@ export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistent
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* Panel de conflictos */}
+      <AnimatePresence>
+        {duplicado && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            style={{
+              background: 'var(--yellow-light)', border: '1px solid var(--yellow)',
+              borderRadius: 'var(--radius-md)', padding: '10px 14px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: 600, color: 'var(--yellow-text)' }}>
+              <AlertTriangle size={14} />
+              <span>{duplicado}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div style={row}>
         <Input
           label="Código"
@@ -158,7 +195,7 @@ export default function SalonForm({ inicial, onSubmit, onCancel, bloquesExistent
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={onCancel} type="button">Cancelar</Button>
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={loading} disabled={!!duplicado}>
           {inicial ? 'Guardar cambios' : 'Crear salón'}
         </Button>
       </div>

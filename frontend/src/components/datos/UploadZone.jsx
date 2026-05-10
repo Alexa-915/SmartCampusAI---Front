@@ -18,13 +18,18 @@ export default function UploadZone({ onUpload, onDelete, label, disabled, alread
   const [error, setError]         = useState('')
   const inputRef                  = useRef()
 
-  // Resetear estado visual cuando los datos se eliminan externamente
-  // (alreadyLoaded pasa de true a false después de borrar)
+  // Sincronizar estado visual con el estado real de los datos
   useEffect(() => {
     if (!alreadyLoaded && count === 0) {
+      // Datos eliminados → limpiar todo
       setFile(null)
       setSuccess('')
       setError('')
+    } else if (alreadyLoaded && count > 0) {
+      // Datos cargados exitosamente → limpiar el archivo temporal y mostrar estado verde
+      setFile(null)
+      setError('')
+      // No setear success aquí — el estado verde viene de alreadyLoaded/showLoaded
     }
   }, [alreadyLoaded, count])
 
@@ -40,7 +45,9 @@ export default function UploadZone({ onUpload, onDelete, label, disabled, alread
     setLoading(true)
     try {
       const res = await onUpload(f)
-      setSuccess(res.data?.mensaje || 'Archivo cargado correctamente')
+      // Solo mostrar éxito si hay un mensaje real (no cuando se abre el modal de validación)
+      const msg = res.data?.mensaje
+      if (msg) setSuccess(msg)
     } catch (err) {
       setError(err.response?.data?.detail || 'Error al procesar el archivo')
       setFile(null)

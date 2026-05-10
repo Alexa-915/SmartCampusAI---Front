@@ -55,6 +55,16 @@ export const uploadSalones = (datasetId, archivo) => {
 }
 export const borrarClasesDataset  = (datasetId) => API.delete(`/api/datasets/${datasetId}/clases`)
 export const borrarSalonesDataset = (datasetId) => API.delete(`/api/datasets/${datasetId}/salones`)
+export const validarClasesExcel   = (datasetId, archivo) => {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return API.post(`/api/datasets/${datasetId}/validar/clases`, form)
+}
+export const validarSalonesExcel  = (datasetId, archivo) => {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return API.post(`/api/datasets/${datasetId}/validar/salones`, form)
+}
 
 // ── Clases ────────────────────────────────────────────────────────────────
 export const getClases      = (datasetId)        => API.get('/api/clases/', { params: { dataset_id: datasetId } })
