@@ -11,7 +11,14 @@ export function exportarExcel(data, columns, filename = 'exportacion') {
   // Crear filas con solo las columnas que queremos y con los headers bonitos
   const rows = data.map(row =>
     columns.reduce((acc, col) => {
-      acc[col.label] = row[col.key] ?? ''
+      const val = row[col.key]
+      // Convertir booleanos a "Sí"/"No" para que el Excel sea legible
+      // y compatible al re-importar
+      if (typeof val === 'boolean') {
+        acc[col.label] = val ? 'Sí' : 'No'
+      } else {
+        acc[col.label] = val ?? ''
+      }
       return acc
     }, {})
   )

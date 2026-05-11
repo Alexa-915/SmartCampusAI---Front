@@ -15,12 +15,29 @@ router = APIRouter(prefix="/api/datasets", tags=["upload"])
 # ── Helpers de parseo (misma lógica que el loader.py del CSP) ──────────────
 
 def _normalizar_bool(serie: pd.Series) -> pd.Series:
-    """Convierte 'Si'/'No' a True/False."""
-    return (
-        serie.astype(str).str.strip().str.lower()
-        .map({"si": True, "sí": True, "no": False, "true": True, "false": False})
-        .fillna(False)
-    )
+    """
+    Convierte múltiples formatos de booleanos a True/False.
+    Maneja: strings, booleanos nativos de Excel/Python, números, y valores con tildes.
+    """
+    VERDADEROS = {"si", "sí", "true", "verdadero", "1", "yes"}
+    FALSOS     = {"no", "false", "falso", "0", ""}
+
+    def convertir(val):
+        # Si ya es un booleano nativo de Python (pandas lo lee así de Excel)
+        if isinstance(val, bool):
+            return val
+        # Si es un número
+        if isinstance(val, (int, float)):
+            return val == 1
+        # Convertir a string, limpiar y comparar
+        v = str(val).strip().lower()
+        if v in VERDADEROS:
+            return True
+        if v in FALSOS or v in ("nan", "none", "nat"):
+            return False
+        return False
+
+    return serie.apply(convertir)
 
 
 def _parsear_clases(contenido: bytes) -> list[dict]:
@@ -39,8 +56,15 @@ def _parsear_clases(contenido: bytes) -> list[dict]:
         "duración":              "duracion",
         "duracion":              "duracion",
         "requiere_videobeam":    "requiere_videobeam",
+        "requiere videobeam":    "requiere_videobeam",
         "requiere_computadores": "requiere_computadores",
+        "requiere computadores": "requiere_computadores",
         "requiere_laboratorio":  "requiere_laboratorio",
+        "requiere laboratorio":  "requiere_laboratorio",
+        # Nombres cortos (como se exportan en PDF)
+        "videobeam":             "requiere_videobeam",
+        "computadores":          "requiere_computadores",
+        "laboratorio":           "requiere_laboratorio",
         "cantidad estudiantes":  "estudiantes",
         "estudiantes":           "estudiantes",
     })
@@ -84,8 +108,15 @@ def _parsear_salones(contenido: bytes) -> list[dict]:
         "tipología":          "tipologia",
         "tipologia":          "tipologia",
         "tiene_videobeam":    "tiene_videobeam",
+        "tiene videobeam":    "tiene_videobeam",
         "tiene_computadores": "tiene_computadores",
+        "tiene computadores": "tiene_computadores",
         "es_laboratorio":     "es_laboratorio",
+        "es laboratorio":     "es_laboratorio",
+        # Nombres cortos (como se exportan en PDF)
+        "videobeam":          "tiene_videobeam",
+        "computadores":       "tiene_computadores",
+        "laboratorio":        "es_laboratorio",
     })
 
     requeridas = {"codigo", "capacidad_raw"}
