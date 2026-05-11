@@ -1,9 +1,9 @@
 # =============================================================================
 #  SmartCampusAI — src/csp/solver.py
-#  Solver CSP con heurística MRV + Backtracking dirigido (multi-día)
+#  Solver CSP con heurística MRV + Soft Constraints + Backtracking dirigido
 # =============================================================================
 
-from src.csp.restricciones import es_valida_asignacion
+from src.csp.restricciones import es_valida_asignacion, score_salon, prefiltrar_clases
 from src.csp.heuristicas   import ordenar_clases_por_mrv
 from src.csp.estado        import EstadoSolver
 from src.utils.horarios    import horarios_se_solapan
@@ -13,66 +13,85 @@ DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
 def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
     """
-    Solver CSP en dos fases con soporte multi-día (Lunes–Viernes).
+    Solver CSP en tres fases:
 
-    Variable del CSP:  clase_i → (salón, día)
-    El horario ya viene fijo en los datos; el solver elige el día.
+    FASE 0 — Prefiltrado:
+        Clasifica clases en imposibles, advertencias y asignables.
+        Las imposibles no entran al solver.
 
-    ─────────────────────────────────────────────────────────────────
-    FASE 1 — Greedy con MRV + Balanceo de carga:
-        1. Ordena clases por dificultad (MRV).
-        2. Para cada clase, evalúa los días de menor a mayor carga
-           actual (heurística de balanceo).
-        3. Dentro de cada día, prueba salones ordenados por menor
-           desperdicio de capacidad.
-        4. Asigna la primera combinación (día, salón) válida.
+    FASE 1 — Greedy con MRV + Score inteligente:
+        1. Ordena clases por dificultad (MRV mejorado).
+        2. Para cada clase, evalúa TODOS los salones válidos.
+        3. Usa score_salon() para elegir el mejor (no el primero).
+        4. Balancea carga entre días y bloques.
 
     FASE 2 — Backtracking dirigido:
-        Solo actúa sobre las clases no asignadas en la Fase 1.
-        Para cada clase pendiente busca un (salón, día) que esté
-        bloqueado por exactamente 1 clase ya asignada. Si esa clase
-        tiene un (salón, día) alternativo disponible, se reasigna
-        para liberar el espacio que necesita la pendiente.
-    ─────────────────────────────────────────────────────────────────
-
-    Retorna:
-        {
-            "asignadas":    [ {..., dia_asignado, salon_asignado, ...} ],
-            "no_asignadas": [ {...} ]
-        }
+        Intenta reubicar clases ya asignadas para liberar espacio.
     """
 
-    # ── FASE 1: Greedy con MRV ────────────────────────────────────────────────
-    print("\n⏳ FASE 1 — Greedy con MRV (multi-día)...")
-    clases_ordenadas = ordenar_clases_por_mrv(clases, salones)
+    # ── FASE 0: Prefiltrado ───────────────────────────────────────────────────
+    print("\n📋 FASE 0 — Prefiltrado inteligente...")
+    prefiltro = prefiltrar_clases(clases, salones)
 
-    estado         = EstadoSolver(salones)
-    asignadas:    list[dict] = []
-    no_asignadas: list[dict] = []
-    carga_por_dia: dict[str, int] = {dia: 0 for dia in DIAS_SEMANA}
+    imposibles    = prefiltro["imposibles"]
+    con_advertencia = prefiltro["advertencias"]
+    asignables    = prefiltro["asignables"]
+
+    # Las clases con advertencia SÍ entran al solver (junto con las asignables)
+    clases_para_solver = asignables + con_advertencia
+
+    # ── FASE 1: Greedy con MRV + Score ────────────────────────────────────────
+    print(f"\n⏳ FASE 1 — Greedy con MRV + Score ({len(clases_para_solver)} clases)...")
+    clases_ordenadas = ordenar_clases_por_mrv(clases_para_solver, salones)
+
+    estado          = EstadoSolver(salones)
+    asignadas:     list[dict] = []
+    no_asignadas:  list[dict] = []
+    carga_por_dia:   dict[str, int] = {dia: 0 for dia in DIAS_SEMANA}
+    carga_por_bloque: dict[str, int] = {}
 
     for clase in clases_ordenadas:
         horario  = clase["horario"]
         profesor = clase["profesor"]
 
-        salones_validos = sorted(
-            [s for s in salones if es_valida_asignacion(clase, s)],
-            key=lambda s: s["capacidad"] - int(clase["estudiantes"])
+        # Obtener TODOS los salones válidos (hard constraints)
+        salones_validos = [s for s in salones if es_valida_asignacion(clase, s)]
+
+        if not salones_validos:
+            clase["razon_no_asignacion"] = (
+                f"Ningún salón cumple los requisitos: "
+                f"{'PC ' if clase.get('requiere_computadores') else ''}"
+                f"{'Lab ' if clase.get('requiere_laboratorio') else ''}"
+                f"{'VB ' if clase.get('requiere_videobeam') else ''}"
+                f"para {clase['estudiantes']} estudiantes"
+            )
+            no_asignadas.append(clase)
+            continue
+
+        # Ordenar salones por SCORE (soft constraints) — no tomar el primero
+        salones_scored = sorted(
+            salones_validos,
+            key=lambda s: score_salon(s, clase, carga_por_bloque)
         )
+
+        # Ordenar días por menor carga (balanceo)
         dias_balanceados = sorted(DIAS_SEMANA, key=lambda d: (carga_por_dia[d], d))
 
         asignado = False
         for dia in dias_balanceados:
-            for salon in salones_validos:
+            for salon in salones_scored:
                 if (estado.salon_disponible(salon["id"], dia, horario)
                         and estado.profesor_libre(profesor, dia, horario)):
                     estado.asignar(salon["id"], profesor, dia, horario)
                     carga_por_dia[dia] += 1
+                    bloque = salon.get("bloque", "")
+                    carga_por_bloque[bloque] = carga_por_bloque.get(bloque, 0) + 1
+
                     asignadas.append({
                         **clase,
                         "dia_asignado":    dia,
                         "salon_asignado":  salon["id"],
-                        "bloque_salon":    salon["bloque"],
+                        "bloque_salon":    salon.get("bloque", ""),
                         "capacidad_salon": salon["capacidad"],
                         "desperdicio":     salon["capacidad"] - int(clase["estudiantes"]),
                     })
@@ -82,12 +101,35 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
                 break
 
         if not asignado:
+            # Diagnóstico: por qué no se pudo asignar
+            dias_intentados = len(DIAS_SEMANA)
+            salones_ocupados = sum(
+                1 for s in salones_scored
+                if not any(estado.salon_disponible(s["id"], d, horario) for d in DIAS_SEMANA)
+            )
+            prof_ocupado = sum(
+                1 for d in DIAS_SEMANA
+                if not estado.profesor_libre(profesor, d, horario)
+            )
+
+            if prof_ocupado >= 5:
+                razon = f"Profesor '{profesor}' ya tiene clases en los 5 días para horario {horario}"
+            elif salones_ocupados == len(salones_scored):
+                razon = f"Los {len(salones_scored)} salones compatibles están ocupados en todos los días para {horario}"
+            else:
+                razon = (
+                    f"Saturación: {len(salones_scored)} salones compatibles, "
+                    f"profesor ocupado {prof_ocupado}/5 días, "
+                    f"combinación día+salón+profesor no encontrada"
+                )
+
+            clase["razon_no_asignacion"] = razon
             no_asignadas.append(clase)
 
     print(f"   Asignadas en Fase 1: {len(asignadas)} | Sin asignar: {len(no_asignadas)}")
 
     # ── FASE 2: Backtracking dirigido ─────────────────────────────────────────
-    print("⏳ FASE 2 — Backtracking dirigido (multi-día)...")
+    print("⏳ FASE 2 — Backtracking dirigido...")
 
     recuperadas = 0
     siguen_sin  = []
@@ -99,7 +141,7 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
 
         salones_validos_p = sorted(
             [s for s in salones if es_valida_asignacion(clase_pendiente, s)],
-            key=lambda s: s["capacidad"] - int(clase_pendiente["estudiantes"])
+            key=lambda s: score_salon(s, clase_pendiente, carga_por_bloque)
         )
         dias_balanceados_p = sorted(DIAS_SEMANA, key=lambda d: (carga_por_dia[d], d))
 
@@ -117,23 +159,26 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
                     and horarios_se_solapan(horario_p, a["horario"])
                 ]
 
-                # Salón libre ese día → asignar directamente
+                # Salón libre → asignar directamente
                 if not conflictos:
                     estado.asignar(salon_obj["id"], profesor_p, dia_p, horario_p)
                     carga_por_dia[dia_p] += 1
+                    bloque = salon_obj.get("bloque", "")
+                    carga_por_bloque[bloque] = carga_por_bloque.get(bloque, 0) + 1
                     asignadas.append({
                         **clase_pendiente,
                         "dia_asignado":    dia_p,
                         "salon_asignado":  salon_obj["id"],
-                        "bloque_salon":    salon_obj["bloque"],
+                        "bloque_salon":    bloque,
                         "capacidad_salon": salon_obj["capacidad"],
                         "desperdicio":     salon_obj["capacidad"] - int(clase_pendiente["estudiantes"]),
+                        "recuperada_por_backtracking": True,
                     })
                     asignada = True
                     recuperadas += 1
                     break
 
-                # Exactamente 1 clase bloqueando → intentar moverla a otro día
+                # 1 conflicto → intentar mover la clase bloqueante
                 if len(conflictos) == 1:
                     clase_bloq = conflictos[0]
                     prof_bloq  = clase_bloq["profesor"]
@@ -145,7 +190,7 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
                             break
                         for salon_alt in sorted(
                             [s for s in salones if es_valida_asignacion(clase_bloq, s)],
-                            key=lambda s: s["capacidad"] - int(clase_bloq["estudiantes"])
+                            key=lambda s: score_salon(s, clase_bloq, carga_por_bloque)
                         ):
                             if salon_alt["id"] == salon_obj["id"] and dia_alt == dia_p:
                                 continue
@@ -159,13 +204,8 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
 
                     salon_alt, dia_alt = alternativo
 
-                    # Reasignar clase bloqueante → alternativo
-                    estado.desasignar(
-                        clase_bloq["salon_asignado"],
-                        clase_bloq["profesor"],
-                        clase_bloq["dia_asignado"],
-                        clase_bloq["horario"]
-                    )
+                    # Reasignar clase bloqueante
+                    estado.desasignar(clase_bloq["salon_asignado"], clase_bloq["profesor"], clase_bloq["dia_asignado"], clase_bloq["horario"])
                     estado.asignar(salon_alt["id"], prof_bloq, dia_alt, hora_bloq)
                     carga_por_dia[clase_bloq["dia_asignado"]] -= 1
                     carga_por_dia[dia_alt] += 1
@@ -175,20 +215,20 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
                         **clase_bloq,
                         "dia_asignado":    dia_alt,
                         "salon_asignado":  salon_alt["id"],
-                        "bloque_salon":    salon_alt["bloque"],
+                        "bloque_salon":    salon_alt.get("bloque", ""),
                         "capacidad_salon": salon_alt["capacidad"],
                         "desperdicio":     salon_alt["capacidad"] - int(clase_bloq["estudiantes"]),
                         "reasignada_por_backtracking": True,
                     }
 
-                    # Asignar clase pendiente al espacio liberado
+                    # Asignar clase pendiente
                     estado.asignar(salon_obj["id"], profesor_p, dia_p, horario_p)
                     carga_por_dia[dia_p] += 1
                     asignadas.append({
                         **clase_pendiente,
                         "dia_asignado":    dia_p,
                         "salon_asignado":  salon_obj["id"],
-                        "bloque_salon":    salon_obj["bloque"],
+                        "bloque_salon":    salon_obj.get("bloque", ""),
                         "capacidad_salon": salon_obj["capacidad"],
                         "desperdicio":     salon_obj["capacidad"] - int(clase_pendiente["estudiantes"]),
                         "recuperada_por_backtracking": True,
@@ -201,6 +241,9 @@ def resolver_csp(clases: list[dict], salones: list[dict]) -> dict:
             siguen_sin.append(clase_pendiente)
 
     print(f"   Recuperadas en Fase 2: {recuperadas}")
-    print(f"   Sin asignar final:     {len(siguen_sin)}")
+    print(f"   Sin asignar final:     {len(siguen_sin) + len(imposibles)}")
 
-    return {"asignadas": asignadas, "no_asignadas": siguen_sin}
+    # Agregar las imposibles a la lista final de no asignadas
+    todas_no_asignadas = siguen_sin + imposibles
+
+    return {"asignadas": asignadas, "no_asignadas": todas_no_asignadas}

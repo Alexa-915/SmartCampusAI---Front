@@ -436,16 +436,104 @@ def diagnostico_solver(dataset_id: int, db: Session = Depends(get_db)):
     if conteo_razones["videobeam"] + conteo_razones["computadores"] + conteo_razones["laboratorio"] > 0:
         recomendaciones.append("Equipar más salones con los recursos demandados (videobeam, computadores, laboratorio).")
 
-    # Salones libres (no usados en ninguna asignación)
-    salones_usados = set(a.salon_asignado for a in asignaciones)
-    salones_libres = [s.codigo for s in salones_bd if s.codigo not in salones_usados]
+    # ── Análisis detallado de salones libres ──────────────────────────────────
+    salones_usados_set = set(a.salon_asignado for a in asignaciones)
+    min_estudiantes = min((int(c.estudiantes) for c in clases_bd), default=0)
+
+    salones_libres_detalle = []
+    for salon in salones_bd:
+        if salon.codigo in salones_usados_set:
+            continue
+
+        # Contar clases compatibles por capacidad
+        clases_por_capacidad = sum(1 for c in clases_bd if int(c.estudiantes) <= salon.capacidad)
+
+        # Contar clases compatibles por requisitos completos
+        clases_compatibles = sum(
+            1 for c in clases_bd
+            if int(c.estudiantes) <= salon.capacidad
+            and (not c.requiere_videobeam or salon.tiene_videobeam)
+            and (not c.requiere_computadores or salon.tiene_computadores)
+            and (not c.requiere_laboratorio or salon.es_laboratorio)
+        )
+
+        # Determinar razón principal
+        if salon.capacidad < min_estudiantes:
+            razon = "Capacidad insuficiente"
+            detalle = f"Capacidad {salon.capacidad}, pero la clase más pequeña tiene {min_estudiantes} estudiantes"
+        elif clases_por_capacidad == 0:
+            razon = "Capacidad insuficiente"
+            detalle = f"Capacidad {salon.capacidad}, ninguna clase cabe en este salón"
+        elif str(salon.codigo).upper().startswith("IDI"):
+            razon = "Excluido por política IDI"
+            detalle = "Salón del bloque IDI penalizado por el solver (reservado para idiomas)"
+        elif clases_compatibles == 0 and (salon.tiene_computadores or salon.es_laboratorio):
+            razon = "Especializado no requerido"
+            detalle = f"Tiene {'PC' if salon.tiene_computadores else ''} {'Lab' if salon.es_laboratorio else ''} pero ninguna clase compatible lo necesita"
+        elif clases_compatibles == 0:
+            razon = "Sin equipamiento requerido"
+            detalle = "Las clases compatibles por tamaño requieren equipamiento que este salón no tiene"
+        elif clases_compatibles > 0:
+            razon = "No fue necesario"
+            detalle = f"Compatible con {clases_compatibles} clases, pero el solver resolvió la demanda con otros salones"
+        else:
+            razon = "Baja demanda"
+            detalle = "No hubo suficiente demanda para utilizar este salón"
+
+        salones_libres_detalle.append({
+            "codigo": salon.codigo,
+            "bloque": salon.bloque or "—",
+            "capacidad": salon.capacidad,
+            "tiene_videobeam": salon.tiene_videobeam,
+            "tiene_computadores": salon.tiene_computadores,
+            "es_laboratorio": salon.es_laboratorio,
+            "razon_principal": razon,
+            "detalle": detalle,
+            "clases_compatibles": clases_compatibles,
+        })
+
+    # Estadísticas de utilización por bloque
+    total_salones = len(salones_bd)
+    total_usados  = len(salones_usados_set)
+    total_libres  = total_salones - total_usados
+    pct_utilizacion = round(total_usados / max(total_salones, 1) * 100, 1)
+
+    bloques_stats = {}
+    for salon in salones_bd:
+        bloque = salon.bloque or "Sin bloque"
+        if bloque not in bloques_stats:
+            bloques_stats[bloque] = {"usados": 0, "libres": 0, "total": 0}
+        bloques_stats[bloque]["total"] += 1
+        if salon.codigo in salones_usados_set:
+            bloques_stats[bloque]["usados"] += 1
+        else:
+            bloques_stats[bloque]["libres"] += 1
+
+    for bloque in bloques_stats:
+        t = bloques_stats[bloque]["total"]
+        u = bloques_stats[bloque]["usados"]
+        bloques_stats[bloque]["porcentaje"] = round(u / max(t, 1) * 100, 1)
+
+    # Conteo de razones de no uso
+    razones_no_uso = {}
+    for s in salones_libres_detalle:
+        r = s["razon_principal"]
+        razones_no_uso[r] = razones_no_uso.get(r, 0) + 1
 
     return {
         "total_no_asignadas": total_no,
-        "diagnosticos": diagnosticos[:30],  # máximo 30
+        "diagnosticos": diagnosticos[:30],
         "conteo_razones": conteo_razones,
         "patrones": patrones,
         "recomendaciones": recomendaciones,
-        "salones_libres": salones_libres[:15],
-        "total_salones_libres": len(salones_libres),
+        "salones_libres": salones_libres_detalle,
+        "total_salones_libres": total_libres,
+        "utilizacion": {
+            "porcentaje": pct_utilizacion,
+            "salones_usados": total_usados,
+            "salones_libres": total_libres,
+            "total_salones": total_salones,
+            "por_bloque": bloques_stats,
+            "razones_no_uso": razones_no_uso,
+        },
     }

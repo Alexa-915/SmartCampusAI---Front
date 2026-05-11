@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   CheckCircle, Calendar, TrendingUp, Building2, Play, RefreshCw,
-  AlertTriangle, XCircle, BarChart3, Clock, Users, Zap,
+  AlertTriangle, XCircle, BarChart3, Clock, Users, Zap, FileDown,
 } from 'lucide-react'
 import { getResumen, resolverCSP, getDatasets, getDiagnostico } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useDataset } from '../context/DatasetContext'
+import { exportarInformePDF } from '../utils/exportInformePDF'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -82,6 +83,11 @@ export default function Dashboard() {
           )}
           <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />} onClick={() => fetchResumen(datasetId)}>Actualizar</Button>
           {isAdmin && <Button variant="yellow" size="sm" icon={<Play size={14} />} loading={running} onClick={handleResolver}>Ejecutar Solver</Button>}
+          {resumen && diagnostico && (
+            <Button variant="secondary" size="sm" icon={<FileDown size={14} />} onClick={() => {
+              exportarInformePDF({ resumen, diagnostico, dataset, usuario: usuario?.nombre })
+            }}>Informe PDF</Button>
+          )}
         </div>
       </div>
 
@@ -291,21 +297,60 @@ export default function Dashboard() {
                 </Card>
               )}
 
-              {/* Salones libres */}
-              {diagnostico.total_salones_libres > 0 && (
-                <Card style={{ marginTop: '1rem' }}>
+              {/* Análisis de utilización de salones */}
+              {diagnostico.utilizacion && (
+                <Card style={{ marginTop: '1.5rem' }}>
                   <div style={s.sectionHeader}>
-                    <h2 style={s.sectionTitle}>Salones sin utilizar ({diagnostico.total_salones_libres})</h2>
-                    <Badge variant="yellow">Desaprovechados</Badge>
+                    <h2 style={s.sectionTitle}>Análisis de utilización de salones</h2>
+                    <Badge variant={diagnostico.utilizacion.porcentaje >= 60 ? 'green' : diagnostico.utilizacion.porcentaje >= 40 ? 'yellow' : 'red'}>
+                      {diagnostico.utilizacion.porcentaje}% utilización
+                    </Badge>
                   </div>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                    Estos salones no fueron asignados a ninguna clase. Posiblemente no cumplen los requisitos demandados.
-                  </p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {diagnostico.salones_libres?.map(s => (
-                      <Badge key={s} variant="default">{s}</Badge>
-                    ))}
+
+                  {/* KPIs de utilización */}
+                  <div style={{ display: 'flex', gap: 12, marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                    <MiniKpi label="Usados" value={diagnostico.utilizacion.salones_usados} color="var(--green)" />
+                    <MiniKpi label="Libres" value={diagnostico.utilizacion.salones_libres} color="var(--yellow)" />
+                    <MiniKpi label="Total" value={diagnostico.utilizacion.total_salones} color="var(--accent)" />
                   </div>
+
+                  {/* Razones de no uso */}
+                  {diagnostico.utilizacion.razones_no_uso && (
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Razones de no utilización</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {Object.entries(diagnostico.utilizacion.razones_no_uso).map(([razon, count]) => (
+                          <Badge key={razon} variant={
+                            razon.includes('Capacidad') ? 'red' :
+                            razon.includes('IDI') ? 'default' :
+                            razon.includes('Especializado') ? 'blue' :
+                            razon.includes('necesario') ? 'green' : 'yellow'
+                          }>
+                            {razon}: {count}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Utilización por bloque */}
+                  {diagnostico.utilizacion.por_bloque && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Por bloque</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                        {Object.entries(diagnostico.utilizacion.por_bloque).map(([bloque, stats]) => (
+                          <div key={bloque} style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{bloque}</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{stats.porcentaje}%</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{stats.usados}/{stats.total} usados</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabla detallada de salones libres (expandible) */}
+                  <SalonesLibresTable salones={diagnostico.salones_libres} />
                 </Card>
               )}
             </>
@@ -346,6 +391,78 @@ function InsightRow({ icon: Icon, label, value, extra }) {
         <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{value || '—'}</div>
       </div>
       {extra && <Badge variant="default">{extra}</Badge>}
+    </div>
+  )
+}
+
+function MiniKpi({ label, value, color }) {
+  return (
+    <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 16px', borderBottom: `3px solid ${color}` }}>
+      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)' }}>{value}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{label}</div>
+    </div>
+  )
+}
+
+function SalonesLibresTable({ salones }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!salones || salones.length === 0) return null
+
+  const visibles = expanded ? salones : salones.slice(0, 5)
+  const razonColor = (razon) => {
+    if (razon?.includes('Capacidad')) return 'var(--red)'
+    if (razon?.includes('IDI')) return 'var(--text-muted)'
+    if (razon?.includes('Especializado')) return 'var(--blue)'
+    if (razon?.includes('necesario')) return 'var(--green)'
+    return 'var(--yellow)'
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        Detalle de salones libres ({salones.length})
+      </p>
+      <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+          <thead>
+            <tr>
+              <th style={s.th}>Código</th>
+              <th style={s.th}>Bloque</th>
+              <th style={s.th}>Cap.</th>
+              <th style={s.th}>Equipo</th>
+              <th style={s.th}>Razón</th>
+              <th style={s.th}>Compat.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.map((salon, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)' }}>
+                <td style={s.td}>{salon.codigo}</td>
+                <td style={s.td}>{salon.bloque}</td>
+                <td style={s.td}>{salon.capacidad}</td>
+                <td style={s.td}>
+                  {salon.tiene_computadores && <Badge variant="accent">PC</Badge>}
+                  {salon.es_laboratorio && <Badge variant="yellow">Lab</Badge>}
+                  {salon.tiene_videobeam && <Badge variant="blue">VB</Badge>}
+                  {!salon.tiene_computadores && !salon.es_laboratorio && !salon.tiene_videobeam && '—'}
+                </td>
+                <td style={{ ...s.td, color: razonColor(salon.razon_principal), fontWeight: 500 }}>
+                  {salon.razon_principal}
+                </td>
+                <td style={s.td}>{salon.clases_compatibles}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {salones.length > 5 && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{ marginTop: 8, background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          {expanded ? '← Mostrar menos' : `Ver todos (${salones.length})`}
+        </button>
+      )}
     </div>
   )
 }
