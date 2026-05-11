@@ -537,3 +537,170 @@ def diagnostico_solver(dataset_id: int, db: Session = Depends(get_db)):
             "razones_no_uso": razones_no_uso,
         },
     }
+
+
+# ── Edición manual de asignaciones ─────────────────────────────────────────
+
+from pydantic import BaseModel
+
+class ReasignarRequest(BaseModel):
+    nuevo_salon_codigo: str
+    nuevo_dia: str = None  # opcional, si no se envía mantiene el día actual
+
+
+@router.get("/salones-disponibles/{asignacion_id}")
+def salones_disponibles(asignacion_id: int, db: Session = Depends(get_db)):
+    """
+    Devuelve los salones compatibles y disponibles para reasignar una clase.
+    Solo muestra salones que:
+    - Tienen capacidad suficiente
+    - Cumplen requisitos (PC, lab, VB)
+    - Están libres en ese día y horario
+    - No son IDI (excluidos)
+    """
+    asig = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
+    if not asig:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+    salones_bd = db.query(Salon).filter(Salon.dataset_id == asig.dataset_id).all()
+    todas_asig = db.query(Asignacion).filter(
+        Asignacion.dataset_id == asig.dataset_id,
+        Asignacion.id != asignacion_id,
+    ).all()
+
+    from src.utils.horarios import horarios_se_solapan
+
+    disponibles = []
+    for salon in salones_bd:
+        # Excluir IDI
+        if salon.codigo.upper().startswith("IDI"):
+            continue
+
+        # Capacidad
+        if salon.capacidad < asig.estudiantes:
+            continue
+
+        # Requisitos
+        if asig.requiere_vb and not salon.tiene_videobeam:
+            continue
+        if asig.requiere_pc and not salon.tiene_computadores:
+            continue
+        if asig.requiere_lab and not salon.es_laboratorio:
+            continue
+
+        # Verificar disponibilidad en el día actual
+        ocupado = False
+        for otra in todas_asig:
+            if (otra.salon_asignado == salon.codigo
+                and otra.dia_asignado == asig.dia_asignado
+                and horarios_se_solapan(asig.horario, otra.horario)):
+                ocupado = True
+                break
+
+        if ocupado:
+            continue
+
+        # Calcular ajuste
+        desperdicio = salon.capacidad - asig.estudiantes
+        if desperdicio <= 5:
+            ajuste = "excelente"
+        elif desperdicio <= 15:
+            ajuste = "bueno"
+        else:
+            ajuste = "aceptable"
+
+        disponibles.append({
+            "codigo": salon.codigo,
+            "bloque": salon.bloque,
+            "capacidad": salon.capacidad,
+            "tiene_videobeam": salon.tiene_videobeam,
+            "tiene_computadores": salon.tiene_computadores,
+            "es_laboratorio": salon.es_laboratorio,
+            "desperdicio": desperdicio,
+            "ajuste": ajuste,
+        })
+
+    # Ordenar por menor desperdicio
+    disponibles.sort(key=lambda s: s["desperdicio"])
+
+    return {
+        "asignacion_id": asignacion_id,
+        "clase": f"{asig.materia} - {asig.grupo}",
+        "dia": asig.dia_asignado,
+        "horario": asig.horario,
+        "salon_actual": asig.salon_asignado,
+        "disponibles": disponibles,
+    }
+
+
+@router.put("/reasignar/{asignacion_id}")
+def reasignar_clase(asignacion_id: int, datos: ReasignarRequest, db: Session = Depends(get_db)):
+    """
+    Reasigna una clase a un nuevo salón.
+    Valida que el salón esté disponible antes de guardar.
+    """
+    asig = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
+    if not asig:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+    # Verificar que el salón existe
+    salon = db.query(Salon).filter(
+        Salon.dataset_id == asig.dataset_id,
+        Salon.codigo == datos.nuevo_salon_codigo,
+    ).first()
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salón no encontrado en el dataset")
+
+    # Validar capacidad
+    if salon.capacidad < asig.estudiantes:
+        raise HTTPException(status_code=400, detail=f"Capacidad insuficiente: el salón tiene {salon.capacidad} pero la clase necesita {asig.estudiantes}")
+
+    # Validar requisitos
+    if asig.requiere_vb and not salon.tiene_videobeam:
+        raise HTTPException(status_code=400, detail="El salón no tiene videobeam")
+    if asig.requiere_pc and not salon.tiene_computadores:
+        raise HTTPException(status_code=400, detail="El salón no tiene computadores")
+    if asig.requiere_lab and not salon.es_laboratorio:
+        raise HTTPException(status_code=400, detail="El salón no es laboratorio")
+
+    # Validar disponibilidad (no conflicto con otra clase)
+    from src.utils.horarios import horarios_se_solapan
+
+    dia_final = datos.nuevo_dia or asig.dia_asignado
+    conflicto = db.query(Asignacion).filter(
+        Asignacion.dataset_id == asig.dataset_id,
+        Asignacion.id != asignacion_id,
+        Asignacion.salon_asignado == datos.nuevo_salon_codigo,
+        Asignacion.dia_asignado == dia_final,
+    ).all()
+
+    for otra in conflicto:
+        if horarios_se_solapan(asig.horario, otra.horario):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Conflicto: el salón {datos.nuevo_salon_codigo} ya tiene '{otra.materia}' el {dia_final} en horario {otra.horario}"
+            )
+
+    # Guardar cambio
+    salon_anterior = asig.salon_asignado
+    asig.salon_asignado  = datos.nuevo_salon_codigo
+    asig.bloque_salon    = salon.bloque or ""
+    asig.capacidad_salon = salon.capacidad
+    asig.desperdicio     = salon.capacidad - asig.estudiantes
+    if datos.nuevo_dia:
+        asig.dia_asignado = datos.nuevo_dia
+
+    db.commit()
+    db.refresh(asig)
+
+    return {
+        "mensaje": f"Clase reasignada de {salon_anterior} a {datos.nuevo_salon_codigo}",
+        "asignacion": {
+            "id": asig.id,
+            "materia": asig.materia,
+            "grupo": asig.grupo,
+            "salon_asignado": asig.salon_asignado,
+            "dia_asignado": asig.dia_asignado,
+            "desperdicio": asig.desperdicio,
+        },
+    }

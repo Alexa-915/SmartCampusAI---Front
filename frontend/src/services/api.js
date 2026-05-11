@@ -31,8 +31,10 @@ API.interceptors.response.use(
 )
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-export const register = (datos) => API.post('/api/auth/register', datos)
-export const login    = (datos) => API.post('/api/auth/login', datos)
+export const register         = (datos) => API.post('/api/auth/register', datos)
+export const login            = (datos) => API.post('/api/auth/login', datos)
+export const cambiarPassword  = (datos) => API.put('/api/auth/cambiar-password', datos)
+export const actualizarPerfil = (datos) => API.put('/api/auth/actualizar-perfil', datos)
 
 // ── Datasets ──────────────────────────────────────────────────────────────
 export const getDatasets      = ()          => API.get('/api/datasets/')
@@ -85,5 +87,7 @@ export const resolverCSP     = (datasetId)       => API.post(`/api/resolver/${da
 export const getAsignaciones = (datasetId)       => API.get('/api/asignaciones', { params: { dataset_id: datasetId } })
 export const getResumen      = (datasetId)       => API.get('/api/resumen', { params: { dataset_id: datasetId } })
 export const getDiagnostico  = (datasetId)       => API.get(`/api/diagnostico/${datasetId}`)
+export const getSalonesDisponibles = (asigId)    => API.get(`/api/salones-disponibles/${asigId}`)
+export const reasignarClase  = (asigId, datos)   => API.put(`/api/reasignar/${asigId}`, datos)
 
 export default API

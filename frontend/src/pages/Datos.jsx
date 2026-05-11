@@ -452,7 +452,9 @@ export default function Datos() {
       {/* Contenido principal — solo si hay dataset seleccionado */}
       {!dataset ? (
         <Card style={{ textAlign: 'center', padding: '3rem' }}>
-          <p style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📂</p>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+            <BookOpen size={22} style={{ color: 'var(--accent)' }} />
+          </div>
           <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
             Ningún dataset seleccionado
           </p>

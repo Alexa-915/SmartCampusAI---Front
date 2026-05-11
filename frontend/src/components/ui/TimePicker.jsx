@@ -217,7 +217,6 @@ export default function TimePicker({ value, onChange, tipo, error: externalError
             transition={{ duration: 0.2 }}
             style={s.warning}
           >
-            <span style={{ fontSize: '1rem' }}>⚠️</span>
             <span>{advertenciaPlanta}</span>
           </motion.div>
         )}

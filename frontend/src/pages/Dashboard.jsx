@@ -470,7 +470,9 @@ function SalonesLibresTable({ salones }) {
 function EmptyState({ isAdmin, onRun, running }) {
   return (
     <Card style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-      <motion.div style={{ width: 64, height: 64, borderRadius: 18, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '1.8rem' }} animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 3, repeat: Infinity }}>🏫</motion.div>
+      <motion.div style={{ width: 64, height: 64, borderRadius: 18, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }} animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 3, repeat: Infinity }}>
+        <Building2 size={28} style={{ color: 'var(--accent)' }} />
+      </motion.div>
       <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Sin datos aún</h3>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
         {isAdmin ? 'Ejecuta el solver para generar las asignaciones.' : 'Espera a que un administrador ejecute el solver.'}

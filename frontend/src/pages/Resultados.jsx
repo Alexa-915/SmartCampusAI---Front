@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, Building2, User, BookOpen, Filter, X, AlertTriangle, Clock } from 'lucide-react'
+import { Calendar, Building2, User, Users, BookOpen, Filter, X, AlertTriangle, Clock } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -8,8 +8,10 @@ import Button from '../components/ui/Button'
 import Loader from '../components/ui/Loader'
 import { useDataset } from '../context/DatasetContext'
 import { useAuth } from '../context/AuthContext'
-import { getAsignaciones } from '../services/api'
+import { getAsignaciones, getSalonesDisponibles, reasignarClase } from '../services/api'
 import { exportarHorarioPDF } from '../utils/exportHorarioPDF'
+import Modal from '../components/ui/Modal'
+import Alert from '../components/ui/Alert'
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00']
@@ -37,6 +39,13 @@ export default function Resultados() {
   const [filtroMateria, setFiltroMateria] = useState('')
   const [hoveredClase, setHoveredClase] = useState(null)
 
+  // Estado de edición de asignaciones
+  const [modoEdicion, setModoEdicion]       = useState(false)
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null)
+  const [salonesDisp, setSalonesDisp]       = useState([])
+  const [loadingSalones, setLoadingSalones] = useState(false)
+  const [alertEdit, setAlertEdit]           = useState(null)
+
   useEffect(() => {
     if (!dataset?.id) { setLoading(false); return }
     setLoading(true)
@@ -45,6 +54,37 @@ export default function Resultados() {
       .catch(() => setAsignaciones([]))
       .finally(() => setLoading(false))
   }, [dataset?.id])
+
+  // Abrir modal de edición para una clase
+  const abrirEdicion = async (clase) => {
+    setClaseSeleccionada(clase)
+    setLoadingSalones(true)
+    setAlertEdit(null)
+    try {
+      const res = await getSalonesDisponibles(clase.id)
+      setSalonesDisp(res.data.disponibles || [])
+    } catch {
+      setSalonesDisp([])
+      setAlertEdit({ type: 'error', message: 'No se pudieron cargar los salones disponibles' })
+    } finally {
+      setLoadingSalones(false)
+    }
+  }
+
+  // Confirmar reasignación
+  const confirmarReasignacion = async (nuevoSalon) => {
+    if (!claseSeleccionada) return
+    try {
+      await reasignarClase(claseSeleccionada.id, { nuevo_salon_codigo: nuevoSalon })
+      // Refrescar asignaciones
+      const res = await getAsignaciones(dataset.id)
+      setAsignaciones(res.data)
+      setClaseSeleccionada(null)
+      setAlertEdit({ type: 'success', message: `Clase reasignada a ${nuevoSalon} correctamente` })
+    } catch (err) {
+      setAlertEdit({ type: 'error', message: err.response?.data?.detail || 'Error al reasignar' })
+    }
+  }
 
   // Listas únicas para filtros
   const salones    = useMemo(() => [...new Set(asignaciones.map(a => a.salon_asignado))].sort(), [asignaciones])
@@ -87,7 +127,9 @@ export default function Resultados() {
   if (!dataset) return (
     <AppLayout>
       <Card style={{ textAlign: 'center', padding: '3rem' }}>
-        <p style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📅</p>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+          <Calendar size={22} style={{ color: 'var(--accent)' }} />
+        </div>
         <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Selecciona un dataset primero</p>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ve a Datos y selecciona o crea un dataset.</p>
       </Card>
@@ -97,7 +139,9 @@ export default function Resultados() {
   if (asignaciones.length === 0) return (
     <AppLayout>
       <Card style={{ textAlign: 'center', padding: '3rem' }}>
-        <p style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>⏳</p>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+          <Clock size={22} style={{ color: 'var(--text-muted)' }} />
+        </div>
         <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Sin asignaciones</p>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ejecuta el solver desde el Dashboard para generar resultados.</p>
       </Card>
@@ -127,7 +171,14 @@ export default function Resultados() {
             size="sm"
             onClick={() => exportarHorarioPDF({ asignaciones, dataset, usuario: usuario?.nombre })}
           >
-            📄 Exportar PDF
+            Exportar PDF
+          </Button>
+          <Button
+            variant={modoEdicion ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setModoEdicion(v => !v)}
+          >
+            {modoEdicion ? 'Editando' : 'Editar'}
           </Button>
         </div>
       </div>
@@ -203,6 +254,7 @@ export default function Resultados() {
                             }}
                             onMouseEnter={() => setHoveredClase(a)}
                             onMouseLeave={() => setHoveredClase(null)}
+                            onClick={() => modoEdicion && abrirEdicion(a)}
                           >
                             <span style={{ ...s.claseMateria, color: color.text }}>{a.materia}</span>
                             <span style={s.claseInfo}>{a.salon_asignado}</span>
@@ -228,10 +280,10 @@ export default function Resultados() {
             style={s.tooltip}
           >
             <p style={s.tooltipTitle}>{hoveredClase.materia} — {hoveredClase.grupo}</p>
-            <p style={s.tooltipLine}>👨‍🏫 {hoveredClase.profesor}</p>
-            <p style={s.tooltipLine}>🏫 {hoveredClase.salon_asignado} ({hoveredClase.bloque_salon})</p>
-            <p style={s.tooltipLine}>🕐 {hoveredClase.horario} • {hoveredClase.dia_asignado}</p>
-            <p style={s.tooltipLine}>👥 {hoveredClase.estudiantes} estudiantes • Cap: {hoveredClase.capacidad_salon}</p>
+            <p style={s.tooltipLine}><User size={11} style={{ display: 'inline', marginRight: 4 }} />{hoveredClase.profesor}</p>
+            <p style={s.tooltipLine}><Building2 size={11} style={{ display: 'inline', marginRight: 4 }} />{hoveredClase.salon_asignado} ({hoveredClase.bloque_salon})</p>
+            <p style={s.tooltipLine}><Clock size={11} style={{ display: 'inline', marginRight: 4 }} />{hoveredClase.horario} • {hoveredClase.dia_asignado}</p>
+            <p style={s.tooltipLine}><Users size={11} style={{ display: 'inline', marginRight: 4 }} />{hoveredClase.estudiantes} estudiantes • Cap: {hoveredClase.capacidad_salon}</p>
             <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
               {hoveredClase.requiere_vb && <Badge variant="blue">VB</Badge>}
               {hoveredClase.requiere_pc && <Badge variant="yellow">PC</Badge>}
@@ -256,6 +308,93 @@ export default function Resultados() {
         <MiniStat icon={User} label="Profesores" value={profesores.length} />
         <MiniStat icon={BookOpen} label="Materias" value={materias.length} />
       </div>
+
+      {/* Alert de edición */}
+      {alertEdit && (
+        <div style={{ marginTop: '1rem' }}>
+          <Alert type={alertEdit.type} message={alertEdit.message} onClose={() => setAlertEdit(null)} />
+        </div>
+      )}
+
+      {/* Indicador de modo edición */}
+      {modoEdicion && (
+        <Card style={{ marginTop: '1rem', borderLeft: '4px solid var(--accent)', padding: '0.75rem 1rem' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--accent-text)', fontWeight: 500 }}>
+            Modo edición activo — haz clic en cualquier clase del calendario para reasignarla
+          </p>
+        </Card>
+      )}
+
+      {/* Modal de reasignación */}
+      <Modal
+        open={!!claseSeleccionada}
+        onClose={() => setClaseSeleccionada(null)}
+        title={claseSeleccionada ? `Reasignar: ${claseSeleccionada.materia} - ${claseSeleccionada.grupo}` : ''}
+        width={550}
+      >
+        {claseSeleccionada && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Info de la clase */}
+            <div style={{ background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <User size={12} style={{ color: 'var(--text-muted)' }} />
+                {claseSeleccionada.profesor} • {claseSeleccionada.horario} • {claseSeleccionada.dia_asignado}
+              </p>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Users size={12} style={{ color: 'var(--text-muted)' }} />
+                {claseSeleccionada.estudiantes} est. • Actual: <strong>{claseSeleccionada.salon_asignado}</strong>
+              </p>
+            </div>
+
+            {/* Lista de salones disponibles */}
+            <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Salones disponibles ({salonesDisp.length})
+            </p>
+
+            {loadingSalones ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Cargando...</p>
+            ) : salonesDisp.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>No hay salones disponibles compatibles</p>
+            ) : (
+              <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {salonesDisp.map(salon => (
+                  <button
+                    key={salon.codigo}
+                    onClick={() => confirmarReasignacion(salon.codigo)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: salon.codigo === claseSeleccionada.salon_asignado ? 'var(--accent-light)' : 'var(--bg)',
+                      border: `1.5px solid ${salon.ajuste === 'excelente' ? 'var(--green)' : salon.ajuste === 'bueno' ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all var(--transition)',
+                    }}
+                  >
+                    <div style={{ textAlign: 'left' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{salon.codigo}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 8 }}>{salon.bloque} • Cap: {salon.capacidad}</span>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                        {salon.tiene_videobeam && <Badge variant="blue">VB</Badge>}
+                        {salon.tiene_computadores && <Badge variant="yellow">PC</Badge>}
+                        {salon.es_laboratorio && <Badge variant="green">Lab</Badge>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <Badge variant={salon.ajuste === 'excelente' ? 'green' : salon.ajuste === 'bueno' ? 'accent' : 'default'}>
+                        {salon.ajuste === 'excelente' ? 'Excelente' : salon.ajuste === 'bueno' ? 'Bueno' : 'Aceptable'}
+                      </Badge>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>+{salon.desperdicio} asientos</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {alertEdit && <Alert type={alertEdit.type} message={alertEdit.message} onClose={() => setAlertEdit(null)} />}
+          </div>
+        )}
+      </Modal>
     </AppLayout>
   )
 }

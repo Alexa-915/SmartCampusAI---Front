@@ -31,8 +31,17 @@ export function AuthProvider({ children }) {
     setUsuario(null)
   }, [])
 
+  // Actualizar datos del usuario en el estado global (después de editar perfil)
+  const updateUsuario = useCallback((nuevosDatos) => {
+    setUsuario(prev => {
+      const updated = { ...prev, ...nuevosDatos }
+      localStorage.setItem('usuario', JSON.stringify(updated))
+      return updated
+    })
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, token, usuario, saveSession, clearSession }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, usuario, saveSession, clearSession, updateUsuario }}>
       {children}
     </AuthContext.Provider>
   )
