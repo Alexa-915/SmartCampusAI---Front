@@ -42,6 +42,7 @@ export default function Datos() {
   const [tab, setTab]               = useState('clases')
   const [alert, setAlert]           = useState(null)
   const [busqueda, setBusqueda]     = useState('')
+  const [filtros, setFiltros]       = useState({ tipo: '', videobeam: '', computadores: '', laboratorio: '' })
 
   // ── Estado de modales ────────────────────────────────────────────────────
   const [modalClase, setModalClase]   = useState(false)
@@ -381,15 +382,32 @@ export default function Datos() {
   ]
 
   // ── Filtrado en tiempo real ──────────────────────────────────────────────
-  // Busca en todos los campos de texto de cada fila
+  // ── Filtrado en tiempo real con filtros combinables ──────────────────────
   const clasesFiltradas = useMemo(() => {
-    if (!busqueda.trim()) return clases
-    const q = busqueda.toLowerCase()
-    return clases.filter(c =>
-      [c.materia, c.grupo, c.profesor, c.tipo, c.horario, c.programa]
-        .some(v => v?.toLowerCase().includes(q))
-    )
-  }, [clases, busqueda])
+    let resultado = clases
+
+    // Filtro de texto libre
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase()
+      resultado = resultado.filter(c =>
+        [c.materia, c.grupo, c.profesor, c.tipo, c.horario, c.programa]
+          .some(v => v?.toLowerCase().includes(q))
+      )
+    }
+
+    // Filtros avanzados
+    if (filtros.tipo) {
+      resultado = resultado.filter(c => c.tipo?.toLowerCase() === filtros.tipo.toLowerCase())
+    }
+    if (filtros.videobeam === 'si') resultado = resultado.filter(c => c.requiere_videobeam)
+    if (filtros.videobeam === 'no') resultado = resultado.filter(c => !c.requiere_videobeam)
+    if (filtros.computadores === 'si') resultado = resultado.filter(c => c.requiere_computadores)
+    if (filtros.computadores === 'no') resultado = resultado.filter(c => !c.requiere_computadores)
+    if (filtros.laboratorio === 'si') resultado = resultado.filter(c => c.requiere_laboratorio)
+    if (filtros.laboratorio === 'no') resultado = resultado.filter(c => !c.requiere_laboratorio)
+
+    return resultado
+  }, [clases, busqueda, filtros])
 
   const salonesFiltrados = useMemo(() => {
     if (!busqueda.trim()) return salones
@@ -399,6 +417,8 @@ export default function Datos() {
         .some(v => v?.toLowerCase().includes(q))
     )
   }, [salones, busqueda])
+
+  const hayFiltrosActivos = busqueda.trim() || Object.values(filtros).some(v => v)
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -601,20 +621,46 @@ export default function Datos() {
                   : 'Buscar por código, bloque, tipología...'}
                 style={s.searchInput}
               />
-              {busqueda && (
+              {hayFiltrosActivos && (
                 <button
-                  onClick={() => setBusqueda('')}
+                  onClick={() => { setBusqueda(''); setFiltros({ tipo: '', videobeam: '', computadores: '', laboratorio: '' }) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}
                 >
                   <X size={14} />
                 </button>
               )}
-              {busqueda && (
+              {hayFiltrosActivos && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                   {tab === 'clases' ? clasesFiltradas.length : salonesFiltrados.length} resultado(s)
                 </span>
               )}
             </div>
+
+            {/* Filtros avanzados — solo para clases */}
+            {tab === 'clases' && (
+              <div style={s.filterBar}>
+                <select value={filtros.tipo} onChange={e => setFiltros(f => ({ ...f, tipo: e.target.value }))} style={s.filterSelect}>
+                  <option value="">Tipo: Todos</option>
+                  <option value="Planta">Planta</option>
+                  <option value="Catedrático">Catedrático</option>
+                </select>
+                <select value={filtros.videobeam} onChange={e => setFiltros(f => ({ ...f, videobeam: e.target.value }))} style={s.filterSelect}>
+                  <option value="">Videobeam: Todos</option>
+                  <option value="si">Requiere VB</option>
+                  <option value="no">No requiere VB</option>
+                </select>
+                <select value={filtros.computadores} onChange={e => setFiltros(f => ({ ...f, computadores: e.target.value }))} style={s.filterSelect}>
+                  <option value="">PC: Todos</option>
+                  <option value="si">Requiere PC</option>
+                  <option value="no">No requiere PC</option>
+                </select>
+                <select value={filtros.laboratorio} onChange={e => setFiltros(f => ({ ...f, laboratorio: e.target.value }))} style={s.filterSelect}>
+                  <option value="">Lab: Todos</option>
+                  <option value="si">Requiere Lab</option>
+                  <option value="no">No requiere Lab</option>
+                </select>
+              </div>
+            )}
 
             {/* Tabla */}
             <div style={{ padding: '0 0 0.5rem' }}>
@@ -778,5 +824,17 @@ const s = {
     flex: 1, border: 'none', background: 'transparent',
     fontSize: '0.875rem', color: 'var(--text-primary)',
     outline: 'none', fontFamily: 'inherit',
+  },
+  filterBar: {
+    display: 'flex', gap: 8, padding: '0.5rem 1rem',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg)',
+    flexWrap: 'wrap',
+  },
+  filterSelect: {
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)', padding: '4px 8px',
+    fontSize: '0.75rem', color: 'var(--text-secondary)',
+    fontFamily: 'inherit', cursor: 'pointer',
   },
 }

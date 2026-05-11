@@ -84,5 +84,6 @@ export const eliminarSalon   = (id)              => API.delete(`/api/salones/${i
 export const resolverCSP     = (datasetId)       => API.post(`/api/resolver/${datasetId}`)
 export const getAsignaciones = (datasetId)       => API.get('/api/asignaciones', { params: { dataset_id: datasetId } })
 export const getResumen      = (datasetId)       => API.get('/api/resumen', { params: { dataset_id: datasetId } })
+export const getDiagnostico  = (datasetId)       => API.get(`/api/diagnostico/${datasetId}`)
 
 export default API

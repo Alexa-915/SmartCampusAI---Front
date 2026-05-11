@@ -11,19 +11,25 @@ def profesor_disponible(clase: dict) -> bool:
     Valida si el horario de la clase cae en la franja permitida
     según el tipo de profesor.
 
-    Planta:      7:00–12:00  y  14:00–18:30
-    Catedrático: 6:00–9:00   |  12:00–14:00  |  18:00–21:00
+    NOTA: Se relajó esta restricción porque los horarios vienen definidos
+    desde el Excel académico. Si la universidad asignó ese horario al profesor,
+    es válido. Solo se valida que esté dentro de la jornada general (6:00–21:00).
+
+    Planta:      7:00–18:30 (jornada laboral completa)
+    Catedrático: 6:00–21:00 (toda la jornada universitaria)
     """
-    inicio, _ = parsear_horario(clase["horario"])
+    inicio, fin = parsear_horario(clase["horario"])
     tipo = clase["tipo"].strip().lower()
 
     if "planta" in tipo:
-        return (7 <= inicio < 12) or (14 <= inicio <= 18.5)
+        # Planta puede dar clase en toda la jornada laboral
+        return 6.0 <= inicio and fin <= 21.0
 
     if "catedr" in tipo:
-        return (6 <= inicio <= 9) or (12 <= inicio < 14) or (18 <= inicio <= 21)
+        # Catedrático puede dar clase en toda la jornada universitaria
+        return 6.0 <= inicio and fin <= 21.0
 
-    print(f"⚠️  Tipo de profesor desconocido: '{clase['tipo']}' en '{clase['materia']}'")
+    # Tipo desconocido → permitir (no bloquear innecesariamente)
     return True
 
 

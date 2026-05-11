@@ -58,6 +58,66 @@ def _salones_a_dict(salones: list[Salon]) -> list[dict]:
     ]
 
 
+def _validar_datos_entrada(clases: list[dict], salones: list[dict]) -> list[dict]:
+    """
+    Valida los datos ANTES de correr el solver.
+    Detecta problemas que harán imposible asignar ciertas clases.
+    """
+    from collections import Counter
+    advertencias = []
+
+    cap_maxima = max((s["capacidad"] for s in salones), default=0)
+    salones_con_pc  = [s for s in salones if s["tiene_computadores"]]
+    salones_lab     = [s for s in salones if s["es_laboratorio"]]
+
+    # 1. Profesor con más de 5 clases en el mismo horario exacto
+    prof_horario = Counter()
+    for c in clases:
+        prof_horario[(c["profesor"], c["horario"])] += 1
+
+    for (prof, horario), count in prof_horario.items():
+        if count > 5:
+            advertencias.append({
+                "tipo": "profesor_saturado",
+                "mensaje": f"El profesor '{prof}' tiene {count} clases en el horario {horario} (máximo 5 días hábiles).",
+                "severidad": "error",
+            })
+
+    # 2. Clases con más estudiantes que el salón más grande
+    for c in clases:
+        if int(c["estudiantes"]) > cap_maxima:
+            advertencias.append({
+                "tipo": "sin_capacidad",
+                "mensaje": f"'{c['materia']} - {c['grupo']}' tiene {c['estudiantes']} estudiantes pero el salón más grande tiene {cap_maxima}.",
+                "severidad": "error",
+            })
+
+    # 3. Clases que requieren PC pero no hay salones con PC
+    if not salones_con_pc:
+        clases_pc = [c for c in clases if c["requiere_computadores"]]
+        if clases_pc:
+            advertencias.append({
+                "tipo": "sin_pc",
+                "mensaje": f"Hay {len(clases_pc)} clases que requieren computadores pero no existe ningún salón con PC.",
+                "severidad": "error",
+            })
+
+    # 4. Clases que requieren laboratorio pero no hay labs
+    if not salones_lab:
+        clases_lab = [c for c in clases if c["requiere_laboratorio"]]
+        if clases_lab:
+            advertencias.append({
+                "tipo": "sin_laboratorio",
+                "mensaje": f"Hay {len(clases_lab)} clases que requieren laboratorio pero no existe ningún laboratorio.",
+                "severidad": "error",
+            })
+
+    for a in advertencias:
+        print(f"⚠️  {a['mensaje']}")
+
+    return advertencias
+
+
 @router.post("/resolver/{dataset_id}")
 def resolver(dataset_id: int, db: Session = Depends(get_db)):
     """
@@ -114,6 +174,7 @@ def resolver(dataset_id: int, db: Session = Depends(get_db)):
         "asignadas":    len(resultado["asignadas"]),
         "no_asignadas": len(resultado["no_asignadas"]),
         "pct_exito":    round(len(resultado["asignadas"]) / total_clases * 100, 1),
+        "advertencias_previas": _validar_datos_entrada(clases, salones),
     }
 
 
@@ -125,18 +186,266 @@ def get_asignaciones(dataset_id: int, db: Session = Depends(get_db)):
 
 @router.get("/resumen")
 def get_resumen(dataset_id: int, db: Session = Depends(get_db)):
-    """Devuelve métricas generales de un dataset."""
-    total   = db.query(Asignacion).filter(Asignacion.dataset_id == dataset_id).count()
+    """Devuelve estadísticas avanzadas del resultado del solver para un dataset."""
+    from sqlalchemy import func as sql_func
+    from collections import Counter
+
+    # Datos base
+    asignaciones = db.query(Asignacion).filter(Asignacion.dataset_id == dataset_id).all()
+    total_clases = db.query(Clase).filter(Clase.dataset_id == dataset_id).count()
+    total_salones = db.query(Salon).filter(Salon.dataset_id == dataset_id).count()
+    total_asignadas = len(asignaciones)
+    no_asignadas = total_clases - total_asignadas
+
+    # Distribución por día
     por_dia = {}
     for dia in ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]:
-        por_dia[dia] = (
-            db.query(Asignacion)
-            .filter(Asignacion.dataset_id == dataset_id, Asignacion.dia_asignado == dia)
-            .count()
-        )
+        por_dia[dia] = sum(1 for a in asignaciones if a.dia_asignado == dia)
+
+    # Salón más utilizado
+    salones_uso = Counter(a.salon_asignado for a in asignaciones)
+    salon_top = salones_uso.most_common(1)[0] if salones_uso else ("—", 0)
+
+    # Bloque más utilizado
+    bloques_uso = Counter(a.bloque_salon for a in asignaciones if a.bloque_salon)
+    bloque_top = bloques_uso.most_common(1)[0] if bloques_uso else ("—", 0)
+
+    # Día más cargado
+    dia_top = max(por_dia, key=por_dia.get) if por_dia else "—"
+
+    # Desperdicio promedio de capacidad
+    desperdicios = [a.desperdicio for a in asignaciones if a.desperdicio is not None]
+    desperdicio_promedio = round(sum(desperdicios) / len(desperdicios), 1) if desperdicios else 0
+
+    # Porcentaje de ocupación (salones únicos usados / total salones)
+    salones_usados = len(set(a.salon_asignado for a in asignaciones))
+    pct_ocupacion = round(salones_usados / max(total_salones, 1) * 100, 1)
+
+    # Distribución por bloque
+    por_bloque = dict(bloques_uso.most_common(10))
+
+    # Horarios más cargados
+    horarios_uso = Counter(a.horario for a in asignaciones)
+    horarios_top = dict(horarios_uso.most_common(5))
+
+    # Clases no asignadas (las que están en Clase pero no en Asignacion)
+    clases_bd = db.query(Clase).filter(Clase.dataset_id == dataset_id).all()
+    claves_asignadas = set(f"{a.materia}|{a.grupo}" for a in asignaciones)
+    clases_sin_asignar = [
+        {"materia": c.materia, "grupo": c.grupo, "profesor": c.profesor,
+         "horario": c.horario, "estudiantes": c.estudiantes}
+        for c in clases_bd
+        if f"{c.materia}|{c.grupo}" not in claves_asignadas
+    ]
+
+    # Porcentaje de éxito
+    pct_exito = round(total_asignadas / max(total_clases, 1) * 100, 1)
 
     return {
-        "dataset_id":      dataset_id,
-        "total_asignadas": total,
-        "por_dia":         por_dia,
+        "dataset_id":         dataset_id,
+        "total_clases":       total_clases,
+        "total_salones":      total_salones,
+        "total_asignadas":    total_asignadas,
+        "no_asignadas":       no_asignadas,
+        "pct_exito":          pct_exito,
+        "por_dia":            por_dia,
+        "salon_top":          {"nombre": salon_top[0], "usos": salon_top[1]},
+        "bloque_top":         {"nombre": bloque_top[0], "usos": bloque_top[1]},
+        "dia_top":            dia_top,
+        "desperdicio_promedio": desperdicio_promedio,
+        "pct_ocupacion":      pct_ocupacion,
+        "salones_usados":     salones_usados,
+        "por_bloque":         por_bloque,
+        "horarios_top":       horarios_top,
+        "clases_sin_asignar": clases_sin_asignar[:20],  # máximo 20 para no sobrecargar
+        "total_sin_asignar":  len(clases_sin_asignar),
+    }
+
+
+@router.get("/diagnostico/{dataset_id}")
+def diagnostico_solver(dataset_id: int, db: Session = Depends(get_db)):
+    """
+    Analiza en detalle por qué cada clase no fue asignada.
+    Evalúa cada restricción individualmente para dar un diagnóstico preciso.
+    """
+    from src.csp.restricciones import es_valida_asignacion, profesor_disponible
+    from src.utils.horarios import horario_dentro_de_jornada, horarios_se_solapan
+
+    # Cargar datos
+    asignaciones = db.query(Asignacion).filter(Asignacion.dataset_id == dataset_id).all()
+    clases_bd    = db.query(Clase).filter(Clase.dataset_id == dataset_id).all()
+    salones_bd   = db.query(Salon).filter(Salon.dataset_id == dataset_id).all()
+
+    if not clases_bd or not salones_bd:
+        return {"diagnosticos": [], "patrones": [], "recomendaciones": []}
+
+    # Convertir a dicts para usar las funciones del CSP
+    salones_dict = _salones_a_dict(salones_bd)
+
+    # Identificar clases no asignadas
+    claves_asignadas = set(f"{a.materia}|{a.grupo}" for a in asignaciones)
+    clases_no_asignadas = [c for c in clases_bd if f"{c.materia}|{c.grupo}" not in claves_asignadas]
+
+    # Construir mapa de ocupación (qué salones están ocupados en qué horarios/días)
+    ocupacion = {}  # salon_id → [(dia, horario)]
+    for a in asignaciones:
+        if a.salon_asignado not in ocupacion:
+            ocupacion[a.salon_asignado] = []
+        ocupacion[a.salon_asignado].append((a.dia_asignado, a.horario))
+
+    # Diagnosticar cada clase no asignada
+    diagnosticos = []
+    conteo_razones = {
+        "capacidad": 0,
+        "videobeam": 0,
+        "computadores": 0,
+        "laboratorio": 0,
+        "horario_profesor": 0,
+        "todos_ocupados": 0,
+        "horario_invalido": 0,
+    }
+
+    for clase in clases_no_asignadas:
+        clase_dict = {
+            "materia": clase.materia, "grupo": clase.grupo,
+            "profesor": clase.profesor, "tipo": clase.tipo,
+            "horario": clase.horario, "estudiantes": clase.estudiantes,
+            "requiere_videobeam": clase.requiere_videobeam,
+            "requiere_computadores": clase.requiere_computadores,
+            "requiere_laboratorio": clase.requiere_laboratorio,
+        }
+
+        razones = []
+        salones_compatibles = 0
+        salones_con_capacidad = 0
+        salones_con_equipo = 0
+        salones_disponibles = 0
+
+        # Verificar horario válido
+        if not horario_dentro_de_jornada(clase.horario or ""):
+            razones.append("Horario fuera de la jornada universitaria (6:00–21:00)")
+            conteo_razones["horario_invalido"] += 1
+
+        # Verificar disponibilidad del profesor
+        if not profesor_disponible(clase_dict):
+            razones.append(f"Profesor '{clase.profesor}' ({clase.tipo}) no disponible en horario {clase.horario}")
+            conteo_razones["horario_profesor"] += 1
+
+        # Evaluar cada salón
+        for salon in salones_dict:
+            # Capacidad
+            tiene_capacidad = salon["capacidad"] >= clase.estudiantes
+            if tiene_capacidad:
+                salones_con_capacidad += 1
+
+            # Equipamiento
+            equipo_ok = True
+            if clase.requiere_videobeam and not salon["tiene_videobeam"]:
+                equipo_ok = False
+            if clase.requiere_computadores and not salon["tiene_computadores"]:
+                equipo_ok = False
+            if clase.requiere_laboratorio and not salon["es_laboratorio"]:
+                equipo_ok = False
+            if equipo_ok:
+                salones_con_equipo += 1
+
+            # Compatible (capacidad + equipo)
+            if tiene_capacidad and equipo_ok:
+                salones_compatibles += 1
+
+                # Verificar disponibilidad en los 5 días
+                disponible_algun_dia = False
+                for dia in ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]:
+                    ocupados_ese_dia = [h for (d, h) in ocupacion.get(salon["id"], []) if d == dia]
+                    conflicto = any(horarios_se_solapan(clase.horario, h) for h in ocupados_ese_dia)
+                    if not conflicto:
+                        disponible_algun_dia = True
+                        break
+
+                if disponible_algun_dia:
+                    salones_disponibles += 1
+
+        # Determinar razón principal con detalle específico
+        if salones_con_capacidad == 0:
+            razones.append(f"Capacidad insuficiente: la clase tiene {clase.estudiantes} estudiantes y ningún salón disponible tiene esa capacidad (máximo disponible: {max((s['capacidad'] for s in salones_dict), default=0)})")
+            conteo_razones["capacidad"] += 1
+        elif salones_compatibles == 0:
+            # Tiene capacidad pero no equipo
+            if clase.requiere_videobeam:
+                total_vb = len([s for s in salones_dict if s["tiene_videobeam"]])
+                razones.append(f"Sin salones con videobeam: requiere VB pero solo hay {total_vb} salones equipados y ninguno tiene capacidad para {clase.estudiantes} est.")
+                conteo_razones["videobeam"] += 1
+            if clase.requiere_computadores:
+                total_pc = len([s for s in salones_dict if s["tiene_computadores"]])
+                razones.append(f"Sin salones con PC: requiere computadores pero solo hay {total_pc} salas de cómputo y ninguna tiene capacidad para {clase.estudiantes} est.")
+                conteo_razones["computadores"] += 1
+            if clase.requiere_laboratorio:
+                total_lab = len([s for s in salones_dict if s["es_laboratorio"]])
+                razones.append(f"Sin laboratorios: requiere lab pero solo hay {total_lab} laboratorios y ninguno tiene capacidad para {clase.estudiantes} est.")
+                conteo_razones["laboratorio"] += 1
+        elif salones_disponibles == 0:
+            razones.append(f"Saturación horaria: los {salones_compatibles} salones compatibles están ocupados en los 5 días para el horario {clase.horario}")
+            conteo_razones["todos_ocupados"] += 1
+
+        # Verificar conflicto de profesor (mismo horario en muchas clases)
+        from collections import Counter
+        prof_count = sum(1 for a in asignaciones if a.profesor == clase.profesor and a.horario == clase.horario)
+        if prof_count >= 5:
+            razones.append(f"Conflicto de profesor: '{clase.profesor}' ya tiene {prof_count} clases asignadas en el horario {clase.horario} (5 días ocupados)")
+            conteo_razones["horario_profesor"] += 1
+
+        if not razones:
+            razones.append(f"Conflicto complejo: había {salones_compatibles} salones compatibles y {salones_disponibles} con disponibilidad, pero el solver no encontró combinación válida de día + salón + profesor")
+            conteo_razones["todos_ocupados"] += 1
+
+        diagnosticos.append({
+            "materia": clase.materia,
+            "grupo": clase.grupo,
+            "profesor": clase.profesor,
+            "horario": clase.horario,
+            "estudiantes": clase.estudiantes,
+            "razones": razones,
+            "salones_compatibles": salones_compatibles,
+            "salones_disponibles": salones_disponibles,
+        })
+
+    # Detectar patrones automáticamente
+    patrones = []
+    total_no = len(clases_no_asignadas)
+
+    if total_no > 0:
+        if conteo_razones["capacidad"] > total_no * 0.3:
+            patrones.append(f"El {round(conteo_razones['capacidad']/total_no*100)}% de las clases sin asignar necesitan salones más grandes de los disponibles.")
+        if conteo_razones["videobeam"] > 0:
+            patrones.append(f"{conteo_razones['videobeam']} clases requieren videobeam pero no hay suficientes salones equipados.")
+        if conteo_razones["computadores"] > 0:
+            patrones.append(f"{conteo_razones['computadores']} clases requieren computadores pero no hay suficientes salas de cómputo.")
+        if conteo_razones["laboratorio"] > 0:
+            patrones.append(f"{conteo_razones['laboratorio']} clases requieren laboratorio pero no hay suficientes disponibles.")
+        if conteo_razones["todos_ocupados"] > total_no * 0.4:
+            patrones.append("La mayoría de conflictos son por saturación de horarios. Los salones compatibles están llenos.")
+        if conteo_razones["horario_profesor"] > 0:
+            patrones.append(f"{conteo_razones['horario_profesor']} clases tienen profesores asignados fuera de su horario permitido.")
+
+    # Recomendaciones
+    recomendaciones = []
+    if conteo_razones["capacidad"] > 0:
+        recomendaciones.append("Considerar agregar salones con mayor capacidad al dataset.")
+    if conteo_razones["todos_ocupados"] > 0:
+        recomendaciones.append("Redistribuir horarios o agregar más salones para reducir la saturación.")
+    if conteo_razones["videobeam"] + conteo_razones["computadores"] + conteo_razones["laboratorio"] > 0:
+        recomendaciones.append("Equipar más salones con los recursos demandados (videobeam, computadores, laboratorio).")
+
+    # Salones libres (no usados en ninguna asignación)
+    salones_usados = set(a.salon_asignado for a in asignaciones)
+    salones_libres = [s.codigo for s in salones_bd if s.codigo not in salones_usados]
+
+    return {
+        "total_no_asignadas": total_no,
+        "diagnosticos": diagnosticos[:30],  # máximo 30
+        "conteo_razones": conteo_razones,
+        "patrones": patrones,
+        "recomendaciones": recomendaciones,
+        "salones_libres": salones_libres[:15],
+        "total_salones_libres": len(salones_libres),
     }
