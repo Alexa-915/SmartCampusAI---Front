@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import solver, auth, datasets, clases, salones, upload
+from app.routers import solver, auth, datasets, clases, salones, upload, ia_dataset
+
 import os
 
 app = FastAPI(
@@ -13,6 +14,7 @@ app = FastAPI(
 # FRONTEND_URL se configura como variable de entorno en Render
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
     os.getenv("FRONTEND_URL", ""),
 ]
 
@@ -30,6 +32,7 @@ app.include_router(datasets.router)
 app.include_router(clases.router)
 app.include_router(salones.router)
 app.include_router(upload.router)
+app.include_router(ia_dataset.router)
 
 @app.on_event("startup")
 def startup():

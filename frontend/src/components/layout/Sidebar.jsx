@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { LayoutDashboard, Database, Table2, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Database, Table2, Settings, LogOut, Sparkles } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import ThemeToggle from './ThemeToggle'
@@ -7,6 +7,7 @@ import ThemeToggle from './ThemeToggle'
 const NAV = [
   { icon: LayoutDashboard, label: 'Dashboard',  path: '/dashboard' },
   { icon: Database,        label: 'Datos',       path: '/datos' },
+  { icon: Sparkles,        label: 'Asistente IA', path: '/asistente-ia' },
   { icon: Table2,          label: 'Resultados',  path: '/resultados' },
   { icon: Settings,        label: 'Configuración', path: '/configuracion' },
 ]

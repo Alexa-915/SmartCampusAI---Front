@@ -91,4 +91,7 @@ export const getDiagnostico  = (datasetId)       => API.get(`/api/diagnostico/${
 export const getSalonesDisponibles = (asigId)    => API.get(`/api/salones-disponibles/${asigId}`)
 export const reasignarClase  = (asigId, datos)   => API.put(`/api/reasignar/${asigId}`, datos)
 
+// ── IA ────────────────────────────────────────────────────────────────────
+export const generarClasesIA = (prompt) => API.post('/api/ia/generar-clases', { prompt })
+
 export default API

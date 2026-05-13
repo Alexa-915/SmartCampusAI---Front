@@ -34,3 +34,4 @@ Thumbs.db
 
 # Datos de salida del solver (generados en runtime)
 backend/csp_engine/output/
+backend/.env
