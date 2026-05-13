@@ -93,5 +93,10 @@ export const reasignarClase  = (asigId, datos)   => API.put(`/api/reasignar/${as
 
 // ── IA ────────────────────────────────────────────────────────────────────
 export const generarClasesIA = (prompt) => API.post('/api/ia/generar-clases', { prompt })
+export const extraerTextoPDF = (archivo) => {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return API.post('/api/pdf/extract-text', form)
+}
 
 export default API

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import solver, auth, datasets, clases, salones, upload, ia_dataset
+from app.routers import solver, auth, datasets, clases, salones, upload, ia_dataset, pdf_extract
 
 import os
 
@@ -33,6 +33,7 @@ app.include_router(clases.router)
 app.include_router(salones.router)
 app.include_router(upload.router)
 app.include_router(ia_dataset.router)
+app.include_router(pdf_extract.router)
 
 @app.on_event("startup")
 def startup():
