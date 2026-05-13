@@ -8,16 +8,19 @@ import Button from '../components/ui/Button'
 import Alert from '../components/ui/Alert'
 import Modal from '../components/ui/Modal'
 import Select from '../components/ui/Select'
+import { useDataset } from '../context/DatasetContext'
 import { generarClasesIA, extraerTextoPDF, getDatasets, crearClase } from '../services/api'
 
 const SUGERENCIAS = [
-  { icon: BookOpen, text: 'Genera 5 grupos de Cálculo I con 30 estudiantes' },
-  { icon: Clock, text: 'Crea horarios de 7:00 a 12:00 para Ingeniería' },
-  { icon: Monitor, text: 'Genera clases con laboratorio de computadores' },
-  { icon: Users, text: 'Organiza 3 grupos de Física con 40 estudiantes' },
+  { icon: BookOpen, text: 'Crea 5 grupos de programación' },
+  { icon: Users, text: 'Genera clases de cálculo con 30 estudiantes' },
+  { icon: Clock, text: 'Necesito grupos nocturnos de bases de datos' },
+  { icon: Monitor, text: 'Crea clases con laboratorio de computadores' },
 ]
 
 export default function AsistenteIA() {
+  const { refrescarTodo } = useDataset()
+
   // Cargar mensajes desde localStorage al montar
   const [prompt, setPrompt]         = useState('')
   const [mensajes, setMensajes]     = useState(() => {
@@ -151,7 +154,9 @@ export default function AsistenteIA() {
         guardadas++
       }
       setModalGuardar(false)
-      setAlert({ type: 'success', message: `${guardadas} clases guardadas en el dataset correctamente.` })
+      setAlert({ type: 'success', message: `${guardadas} clases guardadas en el dataset. Ve a Datos para verlas.` })
+      // Refrescar el contexto global para que Datos muestre las nuevas clases
+      await refrescarTodo()
     } catch (err) {
       setAlert({ type: 'error', message: err.response?.data?.detail || 'Error al guardar las clases' })
     } finally {
@@ -184,7 +189,8 @@ export default function AsistenteIA() {
         <div ref={chatRef} style={s.chatArea}>
           {mensajes.length === 0 && !loading ? (
             <div style={s.emptyState}>
-              <p style={s.emptyText}>Escribe una descripción o sube un PDF para generar clases automáticamente.</p>
+              <p style={s.emptyTitle2}>Genera clases automáticamente</p>
+              <p style={s.emptyText}>Describe las clases que necesitas en lenguaje natural. No necesitas escribir toda la información exacta — luego puedes editar las tarjetas generadas.</p>
               <div style={s.sugGrid}>
                 {SUGERENCIAS.map(({ icon: Icon, text }, i) => (
                   <button key={i} onClick={() => setPrompt(text)} style={s.sugCard}>
@@ -193,6 +199,9 @@ export default function AsistenteIA() {
                   </button>
                 ))}
               </div>
+              <p style={s.helpText}>
+                El asistente puede generar: materias, grupos, profesores, horarios, estudiantes y requerimientos especiales. Luego puedes editar cualquier dato manualmente.
+              </p>
             </div>
           ) : (
             <div style={s.mensajes}>
@@ -345,7 +354,9 @@ const s = {
 
   chatArea: { flex: 1, overflowY: 'auto', paddingBottom: '1rem' },
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', textAlign: 'center' },
-  emptyText: { fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: 400 },
+  emptyText: { fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: 420, lineHeight: 1.5 },
+  emptyTitle2: { fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 },
+  helpText: { fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.25rem', maxWidth: 420, textAlign: 'center', lineHeight: 1.5 },
   sugGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%', maxWidth: 500 },
   sugCard: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'left', transition: 'all 0.15s', lineHeight: 1.4 },
 
