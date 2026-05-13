@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Scissors } from 'lucide-react'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
 import TimePicker from '../ui/TimePicker'
@@ -21,9 +21,10 @@ const EMPTY = {
  * clasesExistentes: array de clases del dataset actual (para detectar duplicados en tiempo real)
  * inicial: datos de la clase a editar (null si es nueva)
  */
-export default function ClaseForm({ inicial, onSubmit, onCancel, clasesExistentes = [], errorInicial = '' }) {
+export default function ClaseForm({ inicial, onSubmit, onCancel, onDividir, clasesExistentes = [], errorInicial = '' }) {
   const [form, setForm]       = useState(inicial ?? EMPTY)
   const [error, setError]     = useState(errorInicial)
+  const [dividirActivo, setDividirActivo] = useState(false)  // toggle: dividir al guardar
   const [loading, setLoading] = useState(false)
 
   const set = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }))
@@ -111,6 +112,7 @@ export default function ClaseForm({ inicial, onSubmit, onCancel, clasesExistente
       await onSubmit({
         ...form,
         estudiantes: parseInt(form.estudiantes) || 0,
+        _dividir: dividirActivo,  // señal para que el padre ejecute la división
       })
     } catch (err) {
       setError(err.response?.data?.detail || 'Error al guardar la clase')
@@ -232,10 +234,48 @@ export default function ClaseForm({ inicial, onSubmit, onCancel, clasesExistente
 
       <Alert type="error" message={error} onClose={() => setError('')} />
 
+      {/* Botón dividir grupo — solo visible al editar una clase existente */}
+      {inicial && onDividir && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginBottom: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setDividirActivo(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%', padding: '10px 14px',
+              background: dividirActivo ? 'var(--accent-light)' : 'var(--bg)',
+              border: `1.5px solid ${dividirActivo ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'all var(--transition)',
+            }}
+          >
+            <Scissors size={15} style={{ color: dividirActivo ? 'var(--accent)' : 'var(--text-muted)' }} />
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: dividirActivo ? 'var(--accent-text)' : 'var(--text-primary)' }}>
+                Dividir grupo al guardar
+              </span>
+              <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                {form.estudiantes} est. → {Math.floor(form.estudiantes / 2)} + {form.estudiantes - Math.floor(form.estudiantes / 2)}
+              </span>
+            </div>
+            <div style={{
+              width: 18, height: 18, borderRadius: 4,
+              border: `2px solid ${dividirActivo ? 'var(--accent)' : 'var(--border)'}`,
+              background: dividirActivo ? 'var(--accent)' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all var(--transition)',
+            }}>
+              {dividirActivo && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+            </div>
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={onCancel} type="button">Cancelar</Button>
         <Button type="submit" loading={loading} disabled={tieneErroresCriticos}>
-          {inicial ? 'Guardar cambios' : 'Crear clase'}
+          {dividirActivo ? 'Guardar y dividir' : inicial ? 'Guardar cambios' : 'Crear clase'}
         </Button>
       </div>
     </form>

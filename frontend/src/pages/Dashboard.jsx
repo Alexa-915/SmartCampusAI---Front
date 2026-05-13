@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   CheckCircle, Calendar, TrendingUp, Building2, Play, RefreshCw,
-  AlertTriangle, XCircle, BarChart3, Clock, Users, Zap, FileDown,
+  AlertTriangle, XCircle, BarChart3, Clock, Users, Zap, FileDown, Pencil,
 } from 'lucide-react'
 import { getResumen, resolverCSP, getDatasets, getDiagnostico } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +28,7 @@ export default function Dashboard() {
 
   const { usuario } = useAuth()
   const { dataset, seleccionarDataset } = useDataset()
+  const navigate  = useNavigate()
   const isAdmin   = usuario?.rol === 'admin'
   const datasetId = dataset?.id || null
 
@@ -259,7 +261,15 @@ export default function Dashboard() {
                     <tbody>
                       {diagnostico.diagnosticos?.map((d, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)' }}>
-                          <td style={s.td}>{d.materia}</td>
+                          <td style={s.td}>
+                            <button
+                              onClick={() => navigate(`/datos?editar=${encodeURIComponent(d.materia)}|${encodeURIComponent(d.grupo)}`)}
+                              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 500, textAlign: 'left', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                              title="Editar esta clase en Datos"
+                            >
+                              <Pencil size={10} /> {d.materia}
+                            </button>
+                          </td>
                           <td style={s.td}>{d.grupo}</td>
                           <td style={s.td}>{d.horario}</td>
                           <td style={s.td}>{d.estudiantes}</td>

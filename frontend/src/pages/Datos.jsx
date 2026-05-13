@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Pencil, Trash2, BookOpen, Building2, Search, X, Download, FileText } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
@@ -21,7 +22,7 @@ import { useDataset } from '../context/DatasetContext'
 import { useAuth } from '../context/AuthContext'
 import {
   getDatasets, crearDataset, eliminarDataset,
-  crearClase, actualizarClase, eliminarClase,
+  crearClase, actualizarClase, eliminarClase, dividirGrupo,
   crearSalon, actualizarSalon, eliminarSalon,
   uploadClases, uploadSalones, borrarClasesDataset, borrarSalonesDataset,
   validarClasesExcel, validarSalonesExcel,
@@ -69,6 +70,26 @@ export default function Datos() {
   const cerrarConfirmacion = () => {
     setConfirmDialog({ open: false, title: '', message: '', onConfirm: null })
   }
+
+  // ── Leer query param para abrir edición directa desde Dashboard ──────────
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const editarParam = searchParams.get('editar')
+    if (editarParam && clases.length > 0) {
+      const [materia, grupo] = editarParam.split('|').map(decodeURIComponent)
+      const clase = clases.find(c =>
+        c.materia === materia && c.grupo === grupo
+      )
+      if (clase) {
+        setTab('clases')
+        setEditClase(clase)
+        setModalClase(true)
+        // Limpiar el param para que no se re-abra al navegar
+        setSearchParams({})
+      }
+    }
+  }, [searchParams, clases])
 
   // ── Cargar datasets al montar ────────────────────────────────────────────
   useEffect(() => { fetchDatasets() }, [])
@@ -252,17 +273,33 @@ export default function Datos() {
 
   // ── CRUD Clases ──────────────────────────────────────────────────────────
   const handleGuardarClase = async (datos) => {
-    if (editClase) {
-      await actualizarClase(editClase.id, datos)
-      setAlert({ type: 'success', message: 'Clase actualizada' })
-    } else {
-      await crearClase({ ...datos, dataset_id: dataset.id })
-      setAlert({ type: 'success', message: 'Clase creada' })
+    const quiereDividir = datos._dividir
+    const datosLimpios = { ...datos }
+    delete datosLimpios._dividir  // no enviar al backend
+
+    const claseId = editClase?.id  // guardar antes de limpiar el estado
+
+    try {
+      if (editClase) {
+        await actualizarClase(claseId, datosLimpios)
+      } else {
+        await crearClase({ ...datosLimpios, dataset_id: dataset.id })
+      }
+
+      // Si pidió dividir, ejecutar DESPUÉS de guardar exitosamente
+      if (quiereDividir && claseId) {
+        const res = await dividirGrupo(claseId)
+        setAlert({ type: 'success', message: `Grupo dividido. Se creó "${res.data.materia} - ${res.data.grupo}" con ${res.data.estudiantes} estudiantes.` })
+      } else {
+        setAlert({ type: 'success', message: editClase ? 'Clase actualizada' : 'Clase creada' })
+      }
+
+      setModalClase(false)
+      setEditClase(null)
+      await refrescarTodo()
+    } catch (err) {
+      setAlert({ type: 'error', message: err.response?.data?.detail || 'Error al guardar' })
     }
-    setModalClase(false)
-    setEditClase(null)
-    await refrescarTodo()
-    // Los useEffect de re-validación se encargan de actualizar los colores
   }
 
   // Re-validar clases después de editar (solo duplicados materia+grupo)
@@ -708,6 +745,7 @@ export default function Datos() {
           inicial={editClase}
           onSubmit={handleGuardarClase}
           onCancel={() => { setModalClase(false); setEditClase(null) }}
+          onDividir={!!editClase}
           clasesExistentes={clases}
           errorInicial={(() => {
             if (!editClase) return ''

@@ -74,6 +74,7 @@ export const getClase       = (id)               => API.get(`/api/clases/${id}`)
 export const crearClase     = (datos)            => API.post('/api/clases/', datos)
 export const actualizarClase= (id, datos)        => API.put(`/api/clases/${id}`, datos)
 export const eliminarClase  = (id)               => API.delete(`/api/clases/${id}`)
+export const dividirGrupo   = (id)               => API.post(`/api/clases/${id}/dividir`)
 
 // ── Salones ───────────────────────────────────────────────────────────────
 export const getSalones      = (datasetId)       => API.get('/api/salones/', { params: { dataset_id: datasetId } })
