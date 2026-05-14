@@ -1,3 +1,4 @@
+import AgentPanel from '../components/AgentPanel'
 import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -15,7 +16,6 @@ import DatasetSelector from '../components/datos/DatasetSelector'
 import UploadZone from '../components/datos/UploadZone'
 import ClaseForm from '../components/datos/ClaseForm'
 import SalonForm from '../components/datos/SalonForm'
-import ValidacionPreview from '../components/datos/ValidacionPreview'
 import { exportarExcel } from '../utils/exportExcel'
 import { exportarPDF } from '../utils/exportPDF'
 import { useDataset } from '../context/DatasetContext'
@@ -25,7 +25,6 @@ import {
   crearClase, actualizarClase, eliminarClase, dividirGrupo,
   crearSalon, actualizarSalon, eliminarSalon,
   uploadClases, uploadSalones, borrarClasesDataset, borrarSalonesDataset,
-  validarClasesExcel, validarSalonesExcel,
 } from '../services/api'
 
 export default function Datos() {
@@ -44,20 +43,13 @@ export default function Datos() {
   const [alert, setAlert]           = useState(null)
   const [busqueda, setBusqueda]     = useState('')
   const [filtros, setFiltros]       = useState({ tipo: '', videobeam: '', computadores: '', laboratorio: '' })
+  const [highlightClase, setHighlightClase] = useState(null) // {materia, grupo} para resaltar temporalmente
 
   // ── Estado de modales ────────────────────────────────────────────────────
   const [modalClase, setModalClase]   = useState(false)
   const [modalSalon, setModalSalon]   = useState(false)
   const [editClase, setEditClase]     = useState(null)  // null = crear, obj = editar
   const [editSalon, setEditSalon]     = useState(null)
-
-  // Estado de validación de Excel (preview antes de cargar)
-  const [modalValidacion, setModalValidacion] = useState(false)
-  const [validacionResult, setValidacionResult] = useState(null)
-  const [archivoClasesPendiente, setArchivoClasesPendiente] = useState(null)
-  const [archivoSalonesPendiente, setArchivoSalonesPendiente] = useState(null)
-  const [cargandoValidacion, setCargandoValidacion] = useState(false)
-  const [tipoValidacion, setTipoValidacion] = useState('clases') // 'clases' | 'salones'
 
   // Estado del diálogo de confirmación
   const [confirmDialog, setConfirmDialog] = useState({
@@ -90,6 +82,33 @@ export default function Datos() {
       }
     }
   }, [searchParams, clases])
+
+  // ── Navegación desde conflictos del agente ──────────────────────────────
+  const handleNavigateToClase = (materia, grupo) => {
+    // Cambiar a pestaña de clases
+    setTab('clases')
+    // Limpiar filtros para que la fila sea visible
+    setBusqueda('')
+    setFiltros({ tipo: '', videobeam: '', computadores: '', laboratorio: '' })
+    // Marcar la clase para highlight
+    setHighlightClase({ materia, grupo })
+    // Scroll a la tabla después de un tick (para que React renderice)
+    setTimeout(() => {
+      const row = document.querySelector(`[data-clase="${materia}|${grupo}"]`)
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        row.style.transition = 'box-shadow 0.3s, background 0.3s'
+        row.style.boxShadow = '0 0 0 2px var(--accent)'
+        row.style.background = 'var(--accent-light)'
+        // Quitar highlight después de 3 segundos
+        setTimeout(() => {
+          row.style.boxShadow = 'none'
+          row.style.background = ''
+          setHighlightClase(null)
+        }, 3000)
+      }
+    }, 100)
+  }
 
   // ── Cargar datasets al montar ────────────────────────────────────────────
   useEffect(() => { fetchDatasets() }, [])
@@ -189,61 +208,20 @@ export default function Datos() {
   }
 
   // ── Upload Excel ─────────────────────────────────────────────────────────
-  // Clases: valida primero, muestra preview, carga solo si el usuario confirma
+  // Clases: carga directa (el agente IA se encarga del análisis inteligente)
   const handleUploadClases = async (archivo) => {
-    const res = await validarClasesExcel(dataset.id, archivo)
-    setValidacionResult(res.data)
-    setArchivoClasesPendiente(archivo)
-    setTipoValidacion('clases')
-    setModalValidacion(true)
-    // Retornar sin mensaje de éxito — el UploadZone no debe mostrar "cargado" todavía
-    // El éxito real se muestra después de confirmar en el modal
-    return { data: {} }
+    const res = await uploadClases(dataset.id, archivo)
+    await refrescarTodo()
+    return res
   }
 
-  const cancelarValidacion = () => {
-    setModalValidacion(false)
-    setValidacionResult(null)
-    setArchivoClasesPendiente(null)
-    setArchivoSalonesPendiente(null)
-  }
-
-  // Salones: también valida primero
+  // Salones: carga directa
   const handleUploadSalones = async (archivo) => {
-    const res = await validarSalonesExcel(dataset.id, archivo)
-    setValidacionResult(res.data)
-    setArchivoSalonesPendiente(archivo)
-    setTipoValidacion('salones')
-    setModalValidacion(true)
-    return { data: {} }
+    const res = await uploadSalones(dataset.id, archivo)
+    await refrescarTodo()
+    return res
   }
 
-  // Confirmar carga genérica (funciona para clases y salones)
-  const confirmarCarga = async () => {
-    setCargandoValidacion(true)
-    try {
-      if (archivoClasesPendiente) {
-        await uploadClases(dataset.id, archivoClasesPendiente)
-        // Guardar errores para colorear filas después
-        if (validacionResult) {
-          setErroresClases([...(validacionResult.errores || []), ...(validacionResult.advertencias || [])])
-        }
-        setAlert({ type: 'success', message: 'Clases cargadas correctamente' })
-      } else if (archivoSalonesPendiente) {
-        await uploadSalones(dataset.id, archivoSalonesPendiente)
-        if (validacionResult) {
-          setErroresSalones([...(validacionResult.errores || []), ...(validacionResult.advertencias || [])])
-        }
-        setAlert({ type: 'success', message: 'Salones cargados correctamente' })
-      }
-      await refrescarTodo()
-      cancelarValidacion()
-    } catch (err) {
-      setAlert({ type: 'error', message: err.response?.data?.detail || 'Error al cargar' })
-    } finally {
-      setCargandoValidacion(false)
-    }
-  }
 
   const handleBorrarClases = () => {
     pedirConfirmacion(
@@ -533,6 +511,9 @@ export default function Datos() {
             </div>
           </Card>
 
+          {/* Panel del agente IA — entre upload y tablas */}
+          {dataset && <AgentPanel datasetId={dataset.id} onNavigateToClase={handleNavigateToClase} />}
+
           {/* Tabs + tabla */}
           <Card padding="0">
             {/* Tab bar */}
@@ -711,8 +692,8 @@ export default function Datos() {
                   columns={COLS_CLASES}
                   data={clasesFiltradas}
                   emptyText={busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay clases en este dataset. Sube un Excel o agrega una manualmente.'}
+                  rowDataAttr={(row) => `${row.materia}|${row.grupo}`}
                   rowStatus={(row, i) => {
-                    // Mapear errores de validación a filas (fila del Excel = index + 2)
                     const filaExcel = i + 2
                     const err = erroresClases.find(e => e.fila === filaExcel)
                     if (!err) return null
@@ -734,6 +715,7 @@ export default function Datos() {
               )}
             </div>
           </Card>
+
         </motion.div>
       )}
 
@@ -777,21 +759,6 @@ export default function Datos() {
             [...new Set(salones.map(s => s.tipologia).filter(Boolean))].sort()
           }
           salonesExistentes={salones}
-        />
-      </Modal>
-
-      {/* Modal de validación de Excel */}
-      <Modal
-        open={modalValidacion}
-        onClose={cancelarValidacion}
-        title={`Validación del archivo de ${tipoValidacion}`}
-        width={700}
-      >
-        <ValidacionPreview
-          resultado={validacionResult}
-          onConfirmar={confirmarCarga}
-          onCancelar={cancelarValidacion}
-          loading={cargandoValidacion}
         />
       </Modal>
 

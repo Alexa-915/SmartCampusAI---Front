@@ -4,8 +4,9 @@
  * data: array de objetos
  * numbered: muestra columna # al inicio (solo visual, no viene de la BD)
  * rowStatus: función (row, index) => 'error' | 'warning' | null — para colorear filas
+ * rowDataAttr: función (row) => string — para agregar data-attribute a cada fila (navegación)
  */
-export default function Table({ columns, data, emptyText = 'Sin datos', numbered = true, rowStatus }) {
+export default function Table({ columns, data, emptyText = 'Sin datos', numbered = true, rowStatus, rowDataAttr }) {
   return (
     <div style={s.wrapper}>
       <table style={s.table}>
@@ -36,6 +37,7 @@ export default function Table({ columns, data, emptyText = 'Sin datos', numbered
                 style={{ ...s.tr, background: rowBg }}
                 onMouseEnter={e => e.currentTarget.style.background = status ? rowBg : 'var(--bg-hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = rowBg}
+                {...(rowDataAttr ? { 'data-clase': rowDataAttr(row) } : {})}
               >
                 {numbered && (
                   <td style={{ ...s.td, ...s.tdNum }}>{i + 1}</td>
