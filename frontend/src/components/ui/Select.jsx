@@ -30,6 +30,7 @@ export default function Select({ label, value, onChange, options = [], placehold
           value={value}
           onChange={e => onChange(e.target.value)}
           required={required}
+          aria-label={label || placeholder}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{

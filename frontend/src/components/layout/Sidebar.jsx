@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { LayoutDashboard, Database, Table2, Settings, LogOut, Sparkles } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useAccessibility } from '../../context/AccessibilityContext'
 import ThemeToggle from './ThemeToggle'
 
 const NAV = [
@@ -16,10 +17,9 @@ export default function Sidebar() {
   const navigate            = useNavigate()
   const location            = useLocation()
   const { usuario, clearSession } = useAuth()
+  const { speak } = useAccessibility()
 
   const logout = () => {
-    // Limpiar sesión del contexto y localStorage, luego redirigir
-    // replace: true evita que el dashboard quede en el historial
     clearSession()
     navigate('/login', { replace: true })
   }
@@ -43,8 +43,11 @@ export default function Sidebar() {
             <motion.button
               key={path}
               onClick={() => navigate(path)}
+              onMouseEnter={() => speak(label)}
+              onFocus={() => speak(label)}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.97 }}
+              aria-label={`Navegar a ${label}`}
               style={{
                 ...s.navItem,
                 background: active ? 'var(--accent-light)' : 'transparent',

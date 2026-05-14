@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { User, Lock, Settings, Info, Database, Moon, Sun, Eye, EyeOff, Shield, HardDrive, RefreshCw } from 'lucide-react'
+import { User, Lock, Settings, Info, Database, Moon, Sun, Eye, EyeOff, Shield, HardDrive, RefreshCw, Type, Contrast, MousePointer, Volume2 } from 'lucide-react'
 import AppLayout from '../components/layout/AppLayout'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -10,12 +10,14 @@ import Alert from '../components/ui/Alert'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useDataset } from '../context/DatasetContext'
+import { useAccessibility } from '../context/AccessibilityContext'
 import { cambiarPassword, actualizarPerfil } from '../services/api'
 
 export default function Configuracion() {
   const { usuario, updateUsuario } = useAuth()
   const { dark, toggle } = useTheme()
   const { clases, salones, dataset } = useDataset()
+  const { prefs: a11y, update: updateA11y, reset: resetA11y } = useAccessibility()
 
   const [seccion, setSeccion] = useState('perfil')
   const [alert, setAlert]     = useState(null)
@@ -46,6 +48,7 @@ export default function Configuracion() {
     { id: 'perfil', icon: User, label: 'Perfil' },
     { id: 'seguridad', icon: Shield, label: 'Seguridad' },
     { id: 'preferencias', icon: Settings, label: 'Preferencias' },
+    { id: 'accesibilidad', icon: Eye, label: 'Accesibilidad' },
     { id: 'sistema', icon: Info, label: 'Sistema' },
   ]
 
@@ -222,6 +225,65 @@ export default function Configuracion() {
               </Card>
             )}
 
+            {/* ── ACCESIBILIDAD ── */}
+            {seccion === 'accesibilidad' && (
+              <Card>
+                <SectionHeader icon={Eye} title="Accesibilidad" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                  {/* Tamaño de texto — con indicador visual del activo */}
+                  <PrefRow icon={Type} label="Tamaño de texto" description="Ajusta el tamaño de la fuente en toda la interfaz">
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {[
+                        { val: -2, label: 'XS' },
+                        { val: -1, label: 'S' },
+                        { val: 0,  label: 'M' },
+                        { val: 1,  label: 'L' },
+                        { val: 2,  label: 'XL' },
+                      ].map(({ val, label }) => (
+                        <button
+                          key={val}
+                          onClick={() => updateA11y('fontSize', val)}
+                          aria-label={`Tamaño de texto ${label}`}
+                          style={{
+                            ...s.a11yBtn,
+                            background: a11y.fontSize === val ? 'var(--accent)' : 'var(--bg)',
+                            color: a11y.fontSize === val ? '#fff' : 'var(--text-primary)',
+                            borderColor: a11y.fontSize === val ? 'var(--accent)' : 'var(--border)',
+                            fontWeight: a11y.fontSize === val ? 700 : 500,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </PrefRow>
+
+                  {/* Contraste alto */}
+                  <PrefRow icon={Contrast} label="Contraste alto" description="Mejora la legibilidad para usuarios con baja visión">
+                    <ToggleSwitch checked={a11y.highContrast} onChange={v => updateA11y('highContrast', v)} />
+                  </PrefRow>
+
+                  {/* Reducción de movimiento */}
+                  <PrefRow icon={MousePointer} label="Reducir movimiento" description="Desactiva animaciones, transiciones y efectos decorativos">
+                    <ToggleSwitch checked={a11y.reducedMotion} onChange={v => updateA11y('reducedMotion', v)} />
+                  </PrefRow>
+
+                  {/* Asistente de voz */}
+                  <PrefRow icon={Volume2} label="Asistente de voz" description="Lee en voz alta los elementos al pasar el cursor o enfocar con teclado">
+                    <ToggleSwitch checked={a11y.voiceAssistant} onChange={v => updateA11y('voiceAssistant', v)} />
+                  </PrefRow>
+
+                  {/* Restablecer */}
+                  <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                    <Button variant="secondary" size="sm" icon={<RefreshCw size={13} />} onClick={resetA11y}>
+                      Restablecer accesibilidad
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* ── SISTEMA ── */}
             {seccion === 'sistema' && (
               <Card>
@@ -345,4 +407,12 @@ const s = {
   hint: { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 },
   infoRow: { display: 'flex', alignItems: 'center', gap: 8 },
   infoLabel: { fontSize: '0.82rem', color: 'var(--text-muted)' },
+  a11yBtn: {
+    width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--border)', background: 'var(--bg)',
+    color: 'var(--text-primary)', cursor: 'pointer',
+    fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'all var(--transition)',
+  },
 }

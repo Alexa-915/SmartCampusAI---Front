@@ -12,6 +12,7 @@ import PublicRoute from './router/PublicRoute'
 export default function App() {
   return (
     <BrowserRouter>
+      <a href="#main-content" className="skip-link">Saltar al contenido principal</a>
       <Routes>
         {/* Rutas públicas */}
         <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
