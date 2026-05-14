@@ -305,7 +305,7 @@ function limpiarTexto(texto) {
 const s = {
   wrapper: { margin: '2rem 0', position: 'relative' },
   container: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-md)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, var(--bg-subtle) 0%, var(--bg-card) 100%)' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, var(--bg-subtle) 0%, var(--bg-card) 100%)', flexWrap: 'wrap', gap: '0.75rem' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   headerIcon: { width: 36, height: 36, borderRadius: 10, background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' },
   headerTitle: { fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' },
@@ -316,7 +316,7 @@ const s = {
   loadingTitle: { fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
   loadingText: { fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' },
   body: { padding: '1.25rem 1.5rem' },
-  kpiRow: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: '1.25rem', padding: '0.85rem', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' },
+  kpiRow: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: '1.25rem', padding: '0.85rem', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', flexWrap: 'wrap' },
   nivelBanner: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-subtle)', borderLeft: '4px solid var(--accent)', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' },
   resumenIA: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--accent-light)', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--accent-text)', lineHeight: 1.5 },
   sectionLabel: { fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 },

@@ -220,3 +220,18 @@ tr {
 }
 
 /* Card hover glow effect (applied via inline styles in components) */
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* RESPONSIVE — Mobile & Tablet                                             */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  html {
+    font-size: 15px;
+  }
+
+  /* Evitar overflow horizontal en toda la app */
+  body, #root {
+    overflow-x: hidden;
+  }
+}

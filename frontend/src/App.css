@@ -52,3 +52,152 @@ a {
 a:hover {
   color: var(--accent-hover);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* RESPONSIVE OVERRIDES                                                      */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── MOBILE (≤768px) ── */
+@media (max-width: 768px) {
+  main {
+    padding: 1rem !important;
+    padding-top: 3.5rem !important;
+  }
+
+  /* Grids → single column en móvil */
+  [style*="gridTemplateColumns: repeat(auto-fill"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="gridTemplateColumns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Headers — apilar verticalmente */
+  [style*="justifyContent: space-between"] {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Tablas — scroll horizontal con mejor padding */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Contenedor de tabla */
+  [style*="overflowX: auto"] {
+    border-radius: 8px;
+  }
+  td, th {
+    padding: 8px 10px !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Calendario/Resultados — scroll horizontal controlado */
+  [style*="gridTemplateColumns: 50px repeat(5"] {
+    min-width: 650px;
+  }
+
+  /* Login — ocultar panel izquierdo, form ocupa todo */
+  [style*="minHeight: 100vh"][style*="display: flex"] > [style*="flex: 1"][style*="overflow: hidden"] {
+    display: none;
+  }
+  [style*="minHeight: 100vh"][style*="display: flex"] > [style*="maxWidth: 480"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-left: none !important;
+  }
+
+  /* Modals — casi full width */
+  [style*="maxWidth: 520"],
+  [style*="maxWidth: 550"],
+  [style*="maxWidth: 580"],
+  [style*="maxWidth: 700"],
+  [style*="maxWidth: 420"] {
+    max-width: 94vw !important;
+    width: 94vw !important;
+  }
+
+  /* Configuración — layout vertical */
+  [style*="display: flex"][style*="gap: 1.5rem"][style*="alignItems: flex-start"] {
+    flex-direction: column !important;
+  }
+  /* Sidebar de configuración — ancho completo */
+  [style*="minWidth: 180"] {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+  /* Nav de configuración — horizontal en móvil */
+  [style*="minWidth: 180"] nav {
+    flex-direction: row !important;
+    overflow-x: auto;
+    gap: 4px !important;
+  }
+
+  /* Formularios — inputs full width */
+  [style*="gridTemplateColumns: 1fr 1fr"][style*="gap: 0.75rem"],
+  [style*="gridTemplateColumns: 1fr 1fr"][style*="gap: 1rem"] {
+    grid-template-columns: 1fr !important;
+  }
+  input, select, textarea {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Filtros — wrap y más compactos */
+  [style*="display: flex"][style*="flexWrap: wrap"] {
+    gap: 6px !important;
+  }
+
+  /* Botones de acción — wrap */
+  [style*="padding: 0.6rem 1rem"][style*="display: flex"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  /* ClassMind — body padding reducido */
+  [style*="padding: 1.25rem 1.5rem"] {
+    padding: 1rem !important;
+  }
+}
+
+/* ── EXTRA SMALL (≤480px) ── */
+@media (max-width: 480px) {
+  main {
+    padding: 0.75rem !important;
+    padding-top: 3rem !important;
+  }
+
+  h1 {
+    font-size: 1.15rem !important;
+  }
+  h2 {
+    font-size: 0.88rem !important;
+  }
+
+  /* Cards — menos padding */
+  [style*="padding: 1.5rem"] {
+    padding: 1rem !important;
+  }
+
+  /* Badges más pequeños */
+  [style*="padding: 2px 8px"],
+  [style*="padding: 4px 12px"] {
+    font-size: 0.65rem !important;
+    padding: 2px 6px !important;
+  }
+}
+
+/* ── TABLET (769px–1024px) ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  main {
+    padding: 1.5rem !important;
+  }
+
+  /* Grids — 2 columnas en tablet */
+  [style*="gridTemplateColumns: repeat(auto-fill, minmax(280px"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
