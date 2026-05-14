@@ -1,11 +1,54 @@
-/* Estilos globales adicionales — la mayoría está en index.css */
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* SmartCampusAI — Enhanced Visual Utilities                                 */
+/* ══════════════════════════════════════════════════════════════════════════ */
 
-/* Transición suave al cambiar de tema */
+/* Smooth theme transitions — only on color properties */
 *, *::before, *::after {
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition-property: background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Evitar transición en animaciones de framer-motion */
-[data-framer-component-type] {
-  transition: none !important;
+/* Exclude framer-motion elements from CSS transitions */
+[style*="transform"] {
+  transition-property: background-color, border-color, color, box-shadow, opacity !important;
+}
+
+/* Glass morphism utility */
+.glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Subtle border glow on focus */
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Better link styling */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+a:hover {
+  color: var(--accent-hover);
 }

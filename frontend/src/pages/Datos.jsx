@@ -420,21 +420,24 @@ export default function Datos() {
 
   // ── Filtrado en tiempo real ──────────────────────────────────────────────
   // ── Filtrado en tiempo real con filtros combinables ──────────────────────
+  // Helper: normaliza texto quitando tildes y pasando a minúsculas
+  const norm = (str) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
   const clasesFiltradas = useMemo(() => {
     let resultado = clases
 
-    // Filtro de texto libre
+    // Filtro de texto libre (ignora tildes y mayúsculas)
     if (busqueda.trim()) {
-      const q = busqueda.toLowerCase()
+      const q = norm(busqueda)
       resultado = resultado.filter(c =>
         [c.materia, c.grupo, c.profesor, c.tipo, c.horario, c.programa]
-          .some(v => v?.toLowerCase().includes(q))
+          .some(v => norm(v).includes(q))
       )
     }
 
     // Filtros avanzados
     if (filtros.tipo) {
-      resultado = resultado.filter(c => c.tipo?.toLowerCase() === filtros.tipo.toLowerCase())
+      resultado = resultado.filter(c => norm(c.tipo) === norm(filtros.tipo))
     }
     if (filtros.videobeam === 'si') resultado = resultado.filter(c => c.requiere_videobeam)
     if (filtros.videobeam === 'no') resultado = resultado.filter(c => !c.requiere_videobeam)
@@ -448,10 +451,10 @@ export default function Datos() {
 
   const salonesFiltrados = useMemo(() => {
     if (!busqueda.trim()) return salones
-    const q = busqueda.toLowerCase()
+    const q = norm(busqueda)
     return salones.filter(s =>
       [s.codigo, s.bloque, s.tipologia, String(s.capacidad)]
-        .some(v => v?.toLowerCase().includes(q))
+        .some(v => norm(v).includes(q))
     )
   }, [salones, busqueda])
 

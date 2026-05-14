@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 
-/** Card base reutilizable */
+/** Card base reutilizable con diseño premium */
 export default function Card({ children, style, hover = false, padding = '1.5rem' }) {
   const base = {
     background: 'var(--bg-card)',
@@ -8,7 +8,7 @@ export default function Card({ children, style, hover = false, padding = '1.5rem
     borderRadius: 'var(--radius-lg)',
     padding,
     boxShadow: 'var(--shadow-sm)',
-    transition: 'box-shadow var(--transition), transform var(--transition)',
+    transition: 'box-shadow var(--transition), transform var(--transition), border-color var(--transition)',
     ...style,
   }
 
@@ -16,8 +16,8 @@ export default function Card({ children, style, hover = false, padding = '1.5rem
     return (
       <motion.div
         style={base}
-        whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        whileHover={{ y: -3, boxShadow: 'var(--shadow-lg)' }}
+        transition={{ type: 'spring', stiffness: 350, damping: 22 }}
       >
         {children}
       </motion.div>

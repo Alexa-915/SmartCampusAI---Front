@@ -69,14 +69,40 @@ export default function AsistenteIA() {
     setPrompt('')
     setMensajes(prev => [...prev, { rol: 'user', texto: textoUsuario }])
     setLoading(true)
-    setLoadingMsg('Generando clases...')
+    setLoadingMsg('Analizando solicitud...')
+
+    // Mensajes dinámicos de loading
+    const msgs = ['Analizando solicitud...', 'Generando clases...', 'Organizando información...']
+    let idx = 0
+    const interval = setInterval(() => {
+      idx = (idx + 1) % msgs.length
+      setLoadingMsg(msgs[idx])
+    }, 2500)
+
     try {
       const res = await generarClasesIA(textoUsuario)
       const clasesConId = (res.data.clases || []).map((c, i) => ({ ...c, _id: Date.now() + i, _editando: false }))
       setMensajes(prev => [...prev, { rol: 'ia', clases: clasesConId, total: res.data.total }])
     } catch (err) {
-      setMensajes(prev => [...prev, { rol: 'ia', error: err.response?.data?.detail || 'Error al conectar con la IA.' }])
+      // Convertir errores técnicos en mensajes amigables
+      const rawError = err.response?.data?.detail || ''
+      let mensajeAmigable
+      if (err.response?.status === 429 || rawError.toLowerCase().includes('quota') || rawError.toLowerCase().includes('rate')) {
+        mensajeAmigable = 'La IA gratuita está temporalmente ocupada. Inténtalo nuevamente en unos segundos.'
+      } else if (rawError.toLowerCase().includes('provider') || rawError.toLowerCase().includes('upstream')) {
+        mensajeAmigable = 'Hubo un problema temporal con el servicio de IA. Vuelve a intentarlo.'
+      } else if (err.response?.status === 503) {
+        mensajeAmigable = 'El servicio de IA no está disponible en este momento. Intenta más tarde.'
+      } else if (rawError) {
+        mensajeAmigable = 'No se pudo generar la respuesta. Intenta reformular tu solicitud.'
+      } else {
+        mensajeAmigable = 'Error de conexión. Verifica tu internet e inténtalo de nuevo.'
+      }
+      // Log técnico para debug
+      console.warn('[IA Error]', rawError || err.message)
+      setMensajes(prev => [...prev, { rol: 'ia', error: mensajeAmigable }])
     } finally {
+      clearInterval(interval)
       setLoading(false)
       setLoadingMsg('')
     }
@@ -215,9 +241,11 @@ export default function AsistenteIA() {
                     <div style={s.bubbleIA}>
                       <div style={s.iaTop}>
                         <span style={s.iaHeader}>{msg.total} clases generadas</span>
-                        <Button size="sm" variant="secondary" icon={<Save size={13} />} onClick={() => abrirGuardar(msg.clases)}>
-                          Guardar en Dataset
-                        </Button>
+                        {msg.clases?.length > 0 && (
+                          <Button size="sm" variant="secondary" icon={<Save size={13} />} onClick={() => abrirGuardar(msg.clases)}>
+                            Guardar en Dataset
+                          </Button>
+                        )}
                       </div>
                       <div style={s.clasesGrid}>
                         {msg.clases?.map(c => (
@@ -234,11 +262,34 @@ export default function AsistenteIA() {
                 </motion.div>
               ))}
               {loading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={s.msgIA}>
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={s.msgIA}>
                   <div style={s.bubbleIA}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={s.typing}><span /><span /><span /></div>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{loadingMsg}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {/* Spinner animado */}
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                        style={{
+                          width: 22, height: 22, borderRadius: '50%',
+                          border: '2.5px solid var(--border)',
+                          borderTopColor: 'var(--accent)',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div>
+                        <motion.span
+                          key={loadingMsg}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)', display: 'block' }}
+                        >
+                          {loadingMsg}
+                        </motion.span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Esto puede tomar unos segundos
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>

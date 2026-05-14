@@ -83,19 +83,28 @@ def generar_clases(data: PromptRequest):
     if not data.prompt.strip():
         raise HTTPException(status_code=400, detail="El prompt no puede estar vacío")
 
-    prompt_sistema = f"""Eres un generador de datasets universitarios.
-Debes responder SOLO JSON válido. NO markdown. NO explicación. NO texto extra.
+    prompt_sistema = f"""Eres un extractor de información académica. Tu trabajo es convertir texto del usuario en JSON estructurado.
 
-Devuelve SIEMPRE este esquema exacto:
+REGLA FUNDAMENTAL: SOLO usa información que el usuario ESCRIBIÓ EXPLÍCITAMENTE. NUNCA inventes datos.
+
+Esquema de respuesta (SOLO JSON, nada más):
 {{"clases": [{json.dumps(ESQUEMA_BASE)}]}}
 
-REGLAS:
-- grupo debe ser "Grupo 1", "Grupo 2", etc.
-- tipo_profesor debe ser "Planta" o "Catedrático"
-- horario debe ser formato "H:MM–H:MM" (ejemplo: "7:00–9:00")
-- Si faltan datos usa "" para texto, 0 para números, false para booleanos
-- NO agregues campos extra
-- Responde SOLO el JSON
+INSTRUCCIONES ESTRICTAS:
+1. Si el usuario NO mencionó profesor → "profesor": ""
+2. Si el usuario NO mencionó horario → "horario": ""
+3. Si el usuario NO mencionó tipo de profesor → "tipo_profesor": ""
+4. Si el usuario NO mencionó estudiantes → "estudiantes": 0
+5. Si el usuario NO mencionó videobeam/computadores/laboratorio → false
+6. Si el usuario NO especificó cantidad de grupos → generar SOLO 1 clase
+7. Si el usuario dice "hola" o algo sin información académica → responder: {{"clases": []}}
+8. grupo siempre es "Grupo 1", "Grupo 2", etc.
+9. horario si se menciona debe ser formato "H:MM–H:MM"
+10. NUNCA inventes nombres de profesores, horarios, ni cantidades
+
+EJEMPLO:
+Usuario: "Genera clases de cálculo con 30 estudiantes"
+Respuesta: {{"clases": [{{"materia": "Cálculo", "grupo": "Grupo 1", "profesor": "", "tipo_profesor": "", "horario": "", "estudiantes": 30, "requiere_videobeam": false, "requiere_computadores": false, "requiere_laboratorio": false}}]}}
 
 Solicitud del usuario:
 {data.prompt}"""

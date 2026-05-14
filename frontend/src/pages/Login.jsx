@@ -47,6 +47,15 @@ export default function Login() {
     <div style={s.page}>
       {/* Panel izquierdo — branding */}
       <div style={s.left}>
+        {/* Partículas decorativas animadas */}
+        <motion.div style={s.particle1} animate={{ y: [-20, 20, -20], x: [-10, 10, -10] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div style={s.particle2} animate={{ y: [15, -15, 15], x: [10, -10, 10] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div style={s.particle3} animate={{ y: [-10, 10, -10], scale: [1, 1.2, 1] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div style={s.particle4} animate={{ y: [10, -20, 10], opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }} />
+
+        {/* Grid decorativo de fondo */}
+        <div style={s.gridBg} />
+
         <div style={s.leftContent}>
           {/* Logo */}
           <motion.div
@@ -166,7 +175,7 @@ const s = {
   },
   left: {
     flex: 1,
-    background: 'linear-gradient(145deg, #1E1B4B 0%, #312E81 40%, #1E3A5F 100%)',
+    background: 'linear-gradient(145deg, #0F0A2E 0%, #1A1145 30%, #0D1B3C 70%, #0A1628 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -175,22 +184,52 @@ const s = {
     overflow: 'hidden',
   },
   leftContent: {
-    maxWidth: 460,
+    maxWidth: 480,
     position: 'relative',
-    zIndex: 1,
+    zIndex: 2,
+  },
+  gridBg: {
+    position: 'absolute', inset: 0,
+    backgroundImage: 'radial-gradient(rgba(99,102,241,0.08) 1px, transparent 1px)',
+    backgroundSize: '30px 30px',
+    pointerEvents: 'none',
+    zIndex: 0,
+  },
+  particle1: {
+    position: 'absolute', width: 120, height: 120, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%)',
+    top: '15%', right: '20%', pointerEvents: 'none', zIndex: 1,
+    filter: 'blur(1px)',
+  },
+  particle2: {
+    position: 'absolute', width: 80, height: 80, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(245,158,11,0.2) 0%, transparent 70%)',
+    bottom: '20%', left: '15%', pointerEvents: 'none', zIndex: 1,
+  },
+  particle3: {
+    position: 'absolute', width: 60, height: 60, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(139,92,246,0.3) 0%, transparent 70%)',
+    top: '60%', right: '10%', pointerEvents: 'none', zIndex: 1,
+  },
+  particle4: {
+    position: 'absolute', width: 200, height: 200, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%)',
+    top: '5%', left: '5%', pointerEvents: 'none', zIndex: 1,
   },
   logoWrap: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    marginBottom: '2rem',
+    display: 'flex', alignItems: 'center', gap: 12,
+    marginBottom: '2.5rem',
   },
   logoIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    background: 'linear-gradient(135deg, #6366F1, #F59E0B)',
+    width: 44, height: 44, borderRadius: 12,
+    background: 'linear-gradient(135deg, #6366F1, #8B5CF6, #F59E0B)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontWeight: 800, color: '#fff', fontSize: 18, flexShrink: 0,
+    fontWeight: 900, color: '#fff', fontSize: 20, flexShrink: 0,
+    boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
   },
   logoText: {
-    fontWeight: 800, fontSize: '1.2rem', color: '#fff',
+    fontWeight: 900, fontSize: '1.3rem', color: '#fff',
+    letterSpacing: '-0.02em',
   },
   headline: {
     fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
@@ -210,29 +249,33 @@ const s = {
   },
   featureCard: {
     display: 'flex', alignItems: 'flex-start', gap: 12,
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 12,
-    padding: '12px 16px',
-    backdropFilter: 'blur(8px)',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: '14px 18px',
+    backdropFilter: 'blur(12px)',
+    transition: 'all 0.2s ease',
   },
   featureIcon: {
-    width: 32, height: 32, borderRadius: 8,
-    background: 'rgba(99,102,241,0.3)',
+    width: 36, height: 36, borderRadius: 10,
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#A5B4FC', flexShrink: 0,
+    boxShadow: '0 2px 8px rgba(99,102,241,0.2)',
   },
-  featureTitle: { color: '#E0E7FF', fontWeight: 600, fontSize: '0.875rem', marginBottom: 2 },
-  featureDesc:  { color: '#818CF8', fontSize: '0.78rem' },
+  featureTitle: { color: '#E0E7FF', fontWeight: 600, fontSize: '0.9rem', marginBottom: 3 },
+  featureDesc:  { color: '#7C83DB', fontSize: '0.78rem', lineHeight: 1.4 },
   glow1: {
-    position: 'absolute', width: 400, height: 400, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)',
-    top: '-10%', right: '-10%', pointerEvents: 'none',
+    position: 'absolute', width: 500, height: 500, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 60%)',
+    top: '-15%', right: '-15%', pointerEvents: 'none', zIndex: 1,
+    filter: 'blur(40px)',
   },
   glow2: {
-    position: 'absolute', width: 300, height: 300, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)',
-    bottom: '5%', left: '5%', pointerEvents: 'none',
+    position: 'absolute', width: 400, height: 400, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 60%)',
+    bottom: '-10%', left: '-5%', pointerEvents: 'none', zIndex: 1,
+    filter: 'blur(30px)',
   },
   right: {
     width: '100%',

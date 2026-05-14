@@ -73,12 +73,12 @@ const sizes = {
 
 const variants = {
   primary: {
-    background: 'var(--accent)',
+    background: 'var(--gradient-accent)',
     color: '#fff',
-    boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
+    boxShadow: '0 2px 12px var(--accent-glow)',
   },
   secondary: {
-    background: 'var(--bg-subtle)',
+    background: 'var(--bg-card)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border)',
     boxShadow: 'var(--shadow-sm)',
@@ -94,9 +94,9 @@ const variants = {
     border: '1px solid var(--red)',
   },
   yellow: {
-    background: 'var(--yellow)',
+    background: 'linear-gradient(135deg, #F59E0B, #D97706)',
     color: '#1C1917',
-    boxShadow: '0 2px 8px rgba(245,158,11,0.35)',
+    boxShadow: '0 2px 12px rgba(245,158,11,0.3)',
   },
 }
 
